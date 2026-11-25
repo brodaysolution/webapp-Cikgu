@@ -299,11 +299,11 @@ function showDoc(key) {
   $('#preview').innerHTML = keys.map(k => DOCS[k].gen(S, P)).join('');
   $('#preview-title').textContent = key === 'ALL' ? 'Semua dokumen' : DOCS[key].tajuk;
   document.title = (P.nama || 'Dokumen') + ' - ' + $('#preview-title').textContent;
-  $('#app').classList.add('hidden'); $('.topbar').classList.add('hidden'); $('#preview-wrap').classList.remove('hidden');
+  $('#app').classList.add('hidden'); $('.topbar').classList.add('hidden'); $('.site-footer').classList.add('hidden'); $('#preview-wrap').classList.remove('hidden');
   window.scrollTo(0, 0);
 }
 $('#btn-back').onclick = () => {
-  $('#preview-wrap').classList.add('hidden'); $('#app').classList.remove('hidden'); $('.topbar').classList.remove('hidden');
+  $('#preview-wrap').classList.add('hidden'); $('#app').classList.remove('hidden'); $('.topbar').classList.remove('hidden'); $('.site-footer').classList.remove('hidden');
   document.title = 'Fail Program Cikgu';
 };
 $('#btn-print').onclick = () => window.print();
