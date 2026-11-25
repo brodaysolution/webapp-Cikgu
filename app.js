@@ -146,7 +146,7 @@ function tableEditor(key, P) {
   const extraBottom = key === 'perbelanjaan' ? `<h3>Gambar resit (lampiran laporan kewangan)</h3>
       <p class="muted">Tip: lampirkan gambar resit dalam Cikgu AI Assistant (butang hijau di bawah kanan) dan minta "Masukkan resit ini ke perbelanjaan" untuk isi jadual secara automatik.</p>${gallery(P, 'resit', 12)}` : '';
   return `<h2>${t.label}</h2>${extraTop}
-    <p class="muted">Tip: salin beberapa baris dari Excel / Google Sheets dan tampal ke dalam mana-mana sel — baris baharu akan ditambah automatik.</p>
+    <p class="muted">Tip: Salin beberapa baris dari Excel/Google Sheets anda dan tampal ke dalam mana-mana sel, baris baharu akan ditambah automatik. Gunakan <a href="#" class="open-ai">"Cikgu AI Assistant"</a> untuk lebih cepat siap!</p>
     <div class="tbl-wrap"><table class="edit"><tr><th>#</th>${t.cols.map(c => `<th>${c}</th>`).join('')}<th></th></tr>
     ${data.map((r, i) => `<tr><td>${i + 1}</td>${t.cols.map((_, j) => `<td><input data-cell="${i},${j}" value="${esc(r[j] || '')}"></td>`).join('')}
       <td><button class="small danger" data-rmrow="${i}">✕</button></td></tr>`).join('')}</table></div>
@@ -294,6 +294,7 @@ function bind() {
     const clr = app.querySelector('[data-clear]'); if (clr) clr.onclick = () => { if (confirm('Kosongkan semua baris?')) { P[tab] = []; save(); render(); } };
   }
 
+  document.querySelectorAll('.open-ai').forEach(l => l.onclick = e => { e.preventDefault(); aiOpen = true; aiAnim = true; render(); const m = $('#ai-msg'); if (m) m.focus(); });
   const fab = $('#ai-fab'); if (fab) fab.onclick = () => { aiOpen = true; aiAnim = true; render(); const m = $('#ai-msg'); if (m) m.focus(); };
   if (aiOpen && view === 'program' && $('#ai-send')) {
     $('#ai-close').onclick = () => { aiOpen = false; aiAnim = true; render(); };

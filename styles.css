@@ -64,6 +64,8 @@ img.thumb { max-height:60px; border:1px solid var(--line); border-radius:6px; }
 .gallery figcaption { display:flex; gap:4px; padding:4px; }
 .gallery figcaption input { padding:4px 6px; font-size:.85em; }
 
+a.open-ai { font-weight:700; color:var(--pri-dark); }
+
 /* ===== Cikgu AI Assistant (butang terapung + panel) ===== */
 .ai-fab { position:fixed; z-index:20; right:max(20px, env(safe-area-inset-right)); bottom:max(20px, env(safe-area-inset-bottom));
   display:flex; align-items:center; gap:10px; padding:12px 20px 12px 14px; border-radius:999px; border:3px solid #fff;
