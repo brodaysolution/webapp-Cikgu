@@ -1,4 +1,4 @@
-// Vercel serverless function: pembantu AI untuk Fail Program Cikgu.
+// Vercel serverless function: pembantu AI untuk CikguDocs.
 // Env yang diperlukan: ANTHROPIC_API_KEY. Pilihan: KOD_AKSES (kod yang cikgu perlu masukkan).
 import Anthropic from "@anthropic-ai/sdk";
 
@@ -39,7 +39,7 @@ const SCHEMA = {
   },
 };
 
-const SYSTEM = `Anda pembantu dokumentasi program sekolah untuk guru di Malaysia, dalam webapp "Fail Program Cikgu".
+const SYSTEM = `Anda pembantu dokumentasi program sekolah untuk guru di Malaysia, dalam webapp "CikguDocs".
 Guru akan minta anda isi atau tulis maklumat program (kertas kerja, AJK, tetamu, atur cara, penerima anugerah, kehadiran, bajet). Mereka mungkin lampirkan gambar atau PDF rujukan (contoh: kertas kerja lama, senarai nama, sebut harga, poster).
 
 Cara anda bertindak:

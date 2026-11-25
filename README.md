@@ -1,4 +1,6 @@
-# Fail Program Cikgu (MVP)
+# CikguDocs
+
+**Isi sekali, siap semua! ☺️**
 
 Webapp untuk guru menjana dokumen program sekolah: **isi maklumat sekali, siap semua dokumen.**
 
