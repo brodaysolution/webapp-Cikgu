@@ -18,7 +18,7 @@ Webapp untuk guru menjana dokumen program sekolah: **isi maklumat sekali, siap s
 4. Isi tab Maklumat, Jawatankuasa, Tetamu dan lain-lain. Senarai boleh ditampal terus dari Excel.
 5. Buka tab **Jana Dokumen**, kemudian **Cetak / Simpan PDF**.
 
-Data disimpan dalam pelayar (localStorage). Gunakan butang **Sandaran** untuk muat turun salinan.
+Data disimpan dalam pelayar (localStorage). Gunakan butang **Data Backup** untuk muat turun salinan.
 `contoh-output.pdf` ialah contoh hasil penjanaan.
 
 ## Pembantu AI

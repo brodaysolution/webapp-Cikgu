@@ -64,9 +64,9 @@ function listView() {
       <div class="row"><button data-open="${p.id}" class="primary small">Buka</button>
       <button data-dup="${p.id}" class="small">Salin</button><button data-del="${p.id}" class="small danger">Padam</button></div></div>`).join('')
       : '<p class="muted">Belum ada program.</p>'}</div>
-  <div class="card"><h2>Sandaran Data</h2><p class="muted">Data disimpan dalam pelayar ini sahaja. Muat turun sandaran secara berkala.</p>
-    <div class="row"><button id="btn-export">⬇️ Muat turun sandaran (.json)</button>
-    <label class="row" style="flex-direction:row"><span>⬆️ Pulihkan:</span><input type="file" id="imp" accept=".json" style="width:auto"></label></div></div>`;
+  <div class="card"><h2>Data Backup</h2><p class="muted">Your data is stored in this browser only. Download a backup regularly.</p>
+    <div class="row"><button id="btn-export">⬇️ Download backup (.json)</button>
+    <label class="row" style="flex-direction:row"><span>⬆️ Restore:</span><input type="file" id="imp" accept=".json" style="width:auto"></label></div></div>`;
 }
 
 function field(obj, key, label, type = 'text', cls = '') {
@@ -272,13 +272,13 @@ function bind() {
   if (ex) ex.onclick = () => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([JSON.stringify(db, null, 1)], { type: 'application/json' }));
-    a.download = 'sandaran-cikgudocs-' + new Date().toISOString().slice(0, 10) + '.json'; a.click();
+    a.download = 'cikgudocs-backup-' + new Date().toISOString().slice(0, 10) + '.json'; a.click();
   };
   const imp = $('#imp');
   if (imp) imp.onchange = () => {
     const r = new FileReader();
     r.onload = () => { try { const d = JSON.parse(r.result); if (!d.programs) throw 0;
-      if (confirm('Gantikan semua data semasa dengan sandaran ini?')) { db = d; save(); render(); } } catch (e) { alert('Fail sandaran tidak sah.'); } };
+      if (confirm('Replace all current data with this backup?')) { db = d; save(); render(); } } catch (e) { alert('Invalid backup file.'); } };
     r.readAsText(imp.files[0]);
   };
 }
