@@ -1,4 +1,4 @@
-/* CikguDocs — MVP. Semua data disimpan dalam pelayar (localStorage). */
+/* CikguDocs MVP. Semua data disimpan dalam pelayar (localStorage). */
 const KEY = 'failProgramCikgu.v1';
 const $ = s => document.querySelector(s);
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -34,7 +34,7 @@ const TEMPLATES = {
     latar: 'Majlis Hari Anugerah Kecemerlangan diadakan setiap tahun bagi meraikan dan menghargai kejayaan murid dalam bidang akademik, kokurikulum dan sahsiah. Majlis ini juga menjadi medium untuk memotivasikan murid lain agar terus berusaha mencapai kecemerlangan.',
     objektif: 'Menghargai kejayaan murid dalam akademik, kokurikulum dan sahsiah.\nMemotivasikan murid untuk terus cemerlang.\nMengeratkan hubungan antara sekolah, ibu bapa dan komuniti.',
     sasaran: 'Murid penerima anugerah, ibu bapa, guru dan tetamu jemputan.',
-    masa: '8.00 pagi – 12.30 tengah hari', tempat: 'Dewan Sekolah',
+    masa: '8.00 pagi hingga 12.30 tengah hari', tempat: 'Dewan Sekolah',
     ajk: [['Penaung', ''], ['Penasihat', ''], ['Pengerusi', ''], ['Naib Pengerusi', ''], ['Setiausaha', ''], ['Bendahari', ''],
           ['AJK Hadiah & Sijil', ''], ['AJK Pentas & Dekorasi', ''], ['AJK Jamuan', ''], ['AJK Protokol & Tetamu', ''],
           ['AJK Siaraya & Dokumentasi', ''], ['AJK Buku Program', ''], ['AJK Kehadiran Murid', '']],
@@ -60,7 +60,7 @@ function render() {
 
 function listView() {
   const ps = db.programs.slice().sort((a, b) => (b.tarikh || '').localeCompare(a.tarikh || ''));
-  return `${!db.school.nama ? `<div class="card" style="border-color:#e0a800">⚠️ Sila lengkapkan <a href="#" data-go="school">Profil Sekolah</a> dahulu (nama, logo, pengetua) — ia digunakan dalam semua dokumen.</div>` : ''}
+  return `${!db.school.nama ? `<div class="card" style="border-color:#e0a800">⚠️ Sila lengkapkan <a href="#" data-go="school">Profil Sekolah</a> dahulu (nama, logo, pengetua). Maklumat ini digunakan dalam semua dokumen.</div>` : ''}
   <div class="card"><h2>Program Baharu</h2>
     <div class="row"><select id="tpl"><option value="hak">Templat: Hari Anugerah Kecemerlangan</option><option value="kosong">Templat: Kosong</option></select>
     <button class="primary" id="btn-new">+ Cipta Program</button></div></div>
@@ -74,15 +74,47 @@ function listView() {
     <label class="row" style="flex-direction:row"><span>⬆️ Restore:</span><input type="file" id="imp" accept=".json" style="width:auto"></label></div></div>`;
 }
 
+/* ---- Mod Edit / Simpan ---- */
+const SCHOOL_KEYS = ['nama', 'alamat', 'telefon', 'emel', 'kodRujukan', 'pengetua', 'jawatanPengetua', 'cogankata', 'logo', 'tandatangan'];
+const INFO_KEYS = ['nama', 'tarikh', 'masa', 'tempat', 'anjuran', 'perasmi', 'rujFail', 'tarikhSurat', 'penyelaras', 'jawatanPenyelaras', 'latar', 'objektif', 'sasaran', 'sumberKewangan', 'kataAlu', 'penutup'];
+const LAPORAN_KEYS = ['bilPeserta', 'pencapaian', 'rumusan', 'kekuatan', 'kelemahan', 'cadangan'];
+let editing = null, editSnap = null, fieldRO = false;
+function sectionTarget(id) {
+  if (id === 'school') return [db.school, SCHOOL_KEYS];
+  const P = cur();
+  if (id === 'info') return [P, INFO_KEYS];
+  if (id === 'laporan') return [P, LAPORAN_KEYS];
+  return [P, [id, ...(id === 'sebutharga' ? ['pembekalA', 'pembekalB', 'pembekalC'] : [])]];
+}
+function startEdit(id) {
+  const [o, keys] = sectionTarget(id);
+  editing = id; editSnap = JSON.stringify(keys.map(k => o[k] === undefined ? null : o[k]));
+}
+function finishEdit() { editing = null; editSnap = null; save(); }
+function cancelEdit() {
+  const [o, keys] = sectionTarget(editing); const vals = JSON.parse(editSnap);
+  keys.forEach((k, i) => { if (vals[i] === null) delete o[k]; else o[k] = vals[i]; });
+  editing = null; editSnap = null; save();
+}
+const isEd = id => editing === id;
+function editBar(id) {
+  return isEd(id)
+    ? `<div class="edit-bar"><span class="edit-badge">Mod edit</span><button class="primary" data-save>Simpan</button><button data-cancel>Batal</button></div>`
+    : `<div class="edit-bar"><button class="edit-btn" data-edit="${id}">Edit</button></div>`;
+}
+const head = (id, title) => `<div class="sec-head"><h2>${title}</h2>${editBar(id)}</div>`;
+
 function field(obj, key, label, type = 'text', cls = '') {
   const v = esc(obj[key] || '');
-  return `<label class="${cls}">${label}${type === 'textarea'
-    ? `<textarea data-f="${key}">${v}</textarea>` : `<input type="${type}" data-f="${key}" value="${v}">`}</label>`;
+  const ro = fieldRO ? ' readonly tabindex="-1"' : '';
+  const empty = fieldRO && !obj[key] ? ' is-empty' : '';
+  return `<label class="${cls}${empty}">${label}${type === 'textarea'
+    ? `<textarea data-f="${key}"${ro}>${v}</textarea>` : `<input type="${type}" data-f="${key}" value="${v}"${ro}>`}</label>`;
 }
 
 function schoolView() {
-  const S = db.school;
-  return `<div class="card"><h2>Profil Sekolah</h2><p class="muted">Diisi sekali sahaja. Digunakan sebagai kepala surat & tandatangan semua dokumen.</p>
+  const S = db.school; fieldRO = !isEd('school');
+  return `<div class="card ${isEd('school') ? 'editing' : ''}">${head('school', 'Profil Sekolah')}<p class="muted">Diisi sekali sahaja. Digunakan sebagai kepala surat & tandatangan semua dokumen.</p>
     <div class="grid" data-scope="school">
       ${field(S, 'nama', 'Nama sekolah', 'text', 'full')}
       ${field(S, 'alamat', 'Alamat', 'textarea', 'full')}
@@ -91,8 +123,8 @@ function schoolView() {
       ${field(S, 'pengetua', 'Nama Pengetua / Guru Besar')}
       ${field(S, 'jawatanPengetua', 'Jawatan (cth: Pengetua)')}
       ${field(S, 'cogankata', 'Cogan kata surat (cth: "MALAYSIA MADANI")')}
-      <label>Logo sekolah<input type="file" accept="image/*" data-img="logo">${S.logo ? `<img class="thumb" src="${S.logo}"> <button class="small danger" data-rmimg="logo">Buang</button>` : ''}</label>
-      <label>Tandatangan pengetua (pilihan, untuk softcopy)<input type="file" accept="image/*" data-img="tandatangan">${S.tandatangan ? `<img class="thumb" src="${S.tandatangan}"> <button class="small danger" data-rmimg="tandatangan">Buang</button>` : ''}
+      <label>Logo sekolah${fieldRO ? '' : '<input type="file" accept="image/*" data-img="logo">'}${S.logo ? `<img class="thumb" src="${S.logo}"> ${fieldRO ? '' : '<button class="small danger" data-rmimg="logo">Buang</button>'}` : (fieldRO ? '<span class="muted">Tiada</span>' : '')}</label>
+      <label>Tandatangan pengetua (pilihan, untuk softcopy)${fieldRO ? '' : '<input type="file" accept="image/*" data-img="tandatangan">'}${S.tandatangan ? `<img class="thumb" src="${S.tandatangan}"> ${fieldRO ? '' : '<button class="small danger" data-rmimg="tandatangan">Buang</button>'}` : (fieldRO ? '<span class="muted">Tiada</span>' : '')}
         <span class="muted">Guna hanya dengan kebenaran pengetua. Jika kosong, ruang tandatangan manual disediakan.</span></label>
     </div></div>`;
 }
@@ -102,7 +134,8 @@ function programView() {
   if (!P) { view = 'programs'; return listView(); }
   const tabs = [['info', 'Maklumat'], ...Object.entries(TABLES).map(([k, t]) => [k, t.label]), ['laporan', 'Laporan & Gambar'], ['docs', 'Jana Dokumen']];
   let body;
-  if (tab === 'info') body = `<div class="grid" data-scope="program">
+  fieldRO = !isEd(tab);
+  if (tab === 'info') body = `${head('info', 'Maklumat Program')}<div class="grid" data-scope="program">
       ${field(P, 'nama', 'Nama program', 'text', 'full')}
       ${field(P, 'tarikh', 'Tarikh program', 'date')}${field(P, 'masa', 'Masa')}${field(P, 'tempat', 'Tempat')}
       ${field(P, 'anjuran', 'Anjuran (cth: Unit HEM)')}${field(P, 'perasmi', 'Perasmi / tetamu kehormat (nama sama seperti dalam tab Tetamu)')}
@@ -114,7 +147,7 @@ function programView() {
       ${field(P, 'sumberKewangan', 'Sumber kewangan (cth: PIBG / SUWA)', 'text', 'full')}
       ${field(P, 'kataAlu', 'Kata aluan (untuk buku program, pilihan)', 'textarea', 'full')}
       ${field(P, 'penutup', 'Penutup kertas kerja (pilihan)', 'textarea', 'full')}</div>`;
-  else if (tab === 'laporan') body = `<h2>Laporan Program (OPR)</h2>
+  else if (tab === 'laporan') body = `${head('laporan', 'Laporan Program (OPR)')}
     <p class="muted">Isi selepas program selesai. Digunakan untuk dokumen Laporan Program (OPR) satu muka surat.</p>
     <div class="grid" data-scope="program">
       ${field(P, 'bilPeserta', 'Bilangan peserta / kehadiran')}${field(P, 'pencapaian', 'Pencapaian objektif (cth: 95% tercapai)')}
@@ -130,7 +163,7 @@ function programView() {
   else body = tableEditor(tab, P);
   return `<div class="row" style="justify-content:space-between;margin-bottom:10px"><button data-go="programs">← Senarai program</button><b>${esc(P.nama)}</b></div>
     <div class="tabs">${tabs.map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'active' : ''}">${l}</button>`).join('')}</div>
-    <div class="card">${body}</div>`;
+    <div class="card ${editing === tab ? 'editing' : ''}">${body}</div>`;
 }
 
 function tableEditor(key, P) {
@@ -145,12 +178,14 @@ function tableEditor(key, P) {
   if (key === 'sebutharga') foot = ['A', 'B', 'C'].map((x, i) => `<b>${esc(P['pembekal' + x] || 'Pembekal ' + x)}: ${rm(rows(data).reduce((s, r) => s + (+r[1] || 0) * (+r[2 + i] || 0), 0))}</b>`).join(' · ');
   const extraBottom = key === 'perbelanjaan' ? `<h3>Gambar resit (lampiran laporan kewangan)</h3>
       <p class="muted">Setiap resit yang di-scan atau di-upload akan dibaca oleh AI secara automatik dan dimasukkan ke jadual di atas. Semak tarikh dan jumlah selepas itu.</p>${gallery(P, 'resit', 12)}` : '';
-  return `<h2>${t.label}</h2>${extraTop}
+  const ed = isEd(key);
+  return `${head(key, t.label)}${extraTop}
     <p class="muted">Tip: Salin beberapa baris dari Excel/Google Sheets anda dan tampal ke dalam mana-mana sel, baris baharu akan ditambah automatik. Gunakan <a href="#" class="open-ai">"Cikgu AI Assistant"</a> untuk lebih cepat siap!</p>
-    <div class="tbl-wrap"><table class="edit"><tr><th>#</th>${t.cols.map(c => `<th>${c}</th>`).join('')}<th></th></tr>
-    ${data.map((r, i) => `<tr><td>${i + 1}</td>${t.cols.map((_, j) => `<td><input data-cell="${i},${j}" value="${esc(r[j] || '')}"></td>`).join('')}
-      <td><button class="small danger" data-rmrow="${i}">✕</button></td></tr>`).join('')}</table></div>
-    <div class="row" style="margin-top:8px"><button data-addrow>+ Tambah baris</button><button data-clear class="danger">Kosongkan</button>
+    <div class="tbl-wrap"><table class="edit"><tr><th>#</th>${t.cols.map(c => `<th>${c}</th>`).join('')}${ed ? '<th></th>' : ''}</tr>
+    ${data.map((r, i) => `<tr><td>${i + 1}</td>${t.cols.map((_, j) => `<td><input data-cell="${i},${j}" value="${esc(r[j] || '')}"${ed ? '' : ' readonly tabindex="-1"'}></td>`).join('')}
+      ${ed ? `<td><button class="small danger" data-rmrow="${i}">✕</button></td>` : ''}</tr>`).join('')}
+    ${!data.length ? `<tr><td colspan="${t.cols.length + 2}" class="muted" style="padding:12px">Tiada data lagi. Tekan Edit untuk menambah.</td></tr>` : ''}</table></div>
+    <div class="row" style="margin-top:8px">${ed ? '<button data-addrow>+ Tambah baris</button><button data-clear class="danger">Kosongkan</button>' : ''}
     ${foot}</div>${extraBottom}`;
 }
 
@@ -218,6 +253,7 @@ async function readReceipt(P, g, b64) {
     const t = (out.jadual || []).find(j => j.jadual === 'perbelanjaan' && (j.baris || []).length);
     if (!t) throw new Error(out.balasan || 'Resit tidak dapat dibaca.');
     const row = Array.from({ length: 5 }, (_, i) => String(t.baris[0][i] ?? ''));
+    if (editing === 'perbelanjaan') finishEdit();
     P.perbelanjaan = [...rows(P.perbelanjaan || []), row];
     g.ai = 'done'; g.aiNote = `${row[1] || 'Resit'}: RM ${row[4] || '?'}`; if (!g.cap) g.cap = [row[1], row[2]].filter(Boolean).join(' · ');
   } catch (e) { g.ai = 'error'; g.aiNote = e.message; }
@@ -251,6 +287,7 @@ async function sendAI() {
       body: JSON.stringify({ kod: db.kodAkses || '', program: programData, sejarah, mesej: msg, lampiran }) });
     const out = await r.json().catch(() => ({ error: 'Pelayan AI tidak dapat dihubungi. Pastikan app dibuka melalui link hosting (bukan fail tempatan).' }));
     if (!r.ok || out.error) throw new Error(out.error || 'Ralat ' + r.status);
+    if (editing) finishEdit();
     const changes = applyAI(P, out);
     P.chat.push({ role: 'assistant', text: out.balasan + (changes.length ? '\n\n✅ Dikemas kini: ' + changes.join(', ') : '') });
   } catch (e) {
@@ -265,14 +302,19 @@ const cur = () => db.programs.find(p => p.id === currentId);
 
 function bind() {
   const app = $('#app');
-  app.querySelectorAll('[data-go]').forEach(b => b.onclick = e => { e.preventDefault(); view = b.dataset.go; render(); });
-  app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { tab = b.dataset.tab; render(); });
+  app.querySelectorAll('[data-go]').forEach(b => b.onclick = e => { e.preventDefault(); if (editing) finishEdit(); view = b.dataset.go;
+    if (view === 'school' && !db.school.nama) startEdit('school'); render(); });
+  app.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => { if (editing) finishEdit(); tab = b.dataset.tab; render(); });
+  app.querySelectorAll('[data-edit]').forEach(b => b.onclick = () => { if (editing) finishEdit(); startEdit(b.dataset.edit); render();
+    const f = $('#app .editing input:not([type=file]), #app .editing textarea'); if (f) f.focus(); });
+  app.querySelectorAll('[data-save]').forEach(b => b.onclick = () => { finishEdit(); render(); toast('Disimpan'); });
+  app.querySelectorAll('[data-cancel]').forEach(b => b.onclick = () => { cancelEdit(); render(); });
 
   const nb = $('#btn-new');
   if (nb) nb.onclick = () => {
     const t = JSON.parse(JSON.stringify(TEMPLATES[$('#tpl').value]));
     const p = { id: uid(), ...t, rujFail: db.school.kodRujukan || '' };
-    db.programs.push(p); save(); currentId = p.id; view = 'program'; tab = 'info'; render();
+    db.programs.push(p); save(); currentId = p.id; view = 'program'; tab = 'info'; startEdit('info'); render();
   };
   app.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { currentId = b.dataset.open; view = 'program'; tab = 'info'; render(); });
   app.querySelectorAll('[data-dup]').forEach(b => b.onclick = () => {
@@ -304,6 +346,7 @@ function bind() {
       const [i, j] = inp.dataset.cell.split(',').map(Number);
       inp.oninput = () => { P[tab][i][j] = inp.value; save(); };
       inp.onpaste = e => {
+        if (!isEd(tab)) return;
         const txt = (e.clipboardData || window.clipboardData).getData('text');
         if (!/[\t\n]/.test(txt.trim())) return;
         e.preventDefault();
@@ -380,7 +423,7 @@ function showDoc(key) {
   const keys = key === 'ALL' ? Object.keys(DOCS) : [key];
   $('#preview').innerHTML = keys.map(k => DOCS[k].gen(S, P)).join('');
   $('#preview-title').textContent = key === 'ALL' ? 'Semua dokumen' : DOCS[key].tajuk;
-  document.title = (P.nama || 'Dokumen') + ' - ' + $('#preview-title').textContent;
+  document.title = (P.nama || 'Dokumen') + ' · ' + $('#preview-title').textContent;
   $('#app').classList.add('hidden'); $('.topbar').classList.add('hidden'); $('.site-footer').classList.add('hidden'); $('#ai-dock').classList.add('hidden'); $('#preview-wrap').classList.remove('hidden');
   window.scrollTo(0, 0);
 }
@@ -389,7 +432,11 @@ $('#btn-back').onclick = () => {
   document.title = 'CikguDocs';
 };
 $('#btn-print').onclick = () => window.print();
-document.querySelectorAll('.topbar nav button').forEach(b => b.onclick = () => { view = b.dataset.view; render(); });
+document.querySelectorAll('.topbar nav button').forEach(b => b.onclick = () => { if (editing) finishEdit(); view = b.dataset.view; render(); });
+function toast(msg) {
+  let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast no-print'; document.body.appendChild(t); }
+  t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1800);
+}
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && aiOpen) { aiOpen = false; aiAnim = true; render(); } });
 
 render();

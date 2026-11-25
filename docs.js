@@ -131,7 +131,7 @@ const DOCS = {
     const body = it.map((r, i) => {
       const q = num(r[1]);
       const cells = [0, 1, 2].map(k => { const t = q * num(r[2 + k]); tot[k] += t;
-        return `<td style="text-align:right">${r[2 + k] ? rm(num(r[2 + k])) : '-'}</td><td style="text-align:right">${r[2 + k] ? rm(t) : '-'}</td>`; }).join('');
+        return `<td style="text-align:right">${r[2 + k] ? rm(num(r[2 + k])) : ''}</td><td style="text-align:right">${r[2 + k] ? rm(t) : ''}</td>`; }).join('');
       return `<tr><td class="center">${i + 1}</td><td>${esc(r[0])}</td><td class="center">${esc(r[1])}</td>${cells}</tr>`;
     }).join('');
     const valid = [0, 1, 2].filter(k => tot[k] > 0);
@@ -141,7 +141,7 @@ const DOCS = {
       <table class="doc" style="font-size:9.5pt"><tr><th rowspan="2">Bil</th><th rowspan="2">Perkara</th><th rowspan="2">Kuantiti</th>
         ${names.map(n => `<th colspan="2">${esc(n)}</th>`).join('')}</tr>
         <tr>${names.map(() => '<th>Harga Seunit</th><th>Jumlah</th>').join('')}</tr>${body}
-        <tr><th colspan="3" style="text-align:right">JUMLAH KESELURUHAN</th>${tot.map((t, k) => `<th colspan="2" style="text-align:right">${t ? rm(t) : '-'}</th>`).join('')}</tr></table>
+        <tr><th colspan="3" style="text-align:right">JUMLAH KESELURUHAN</th>${tot.map((t, k) => `<th colspan="2" style="text-align:right">${t ? rm(t) : ''}</th>`).join('')}</tr></table>
       <h3>SYOR</h3>
       <p>${best >= 0 ? `Berdasarkan perbandingan di atas, adalah disyorkan supaya sebut harga daripada <b>${esc(names[best])}</b> dengan jumlah <b>${rm(tot[best])}</b> dipilih kerana menawarkan harga terendah dan memenuhi keperluan program.` : 'Sila lengkapkan harga daripada pembekal dalam tab Sebut Harga.'}</p>
       <table class="doc" style="margin-top:24px"><tr>
