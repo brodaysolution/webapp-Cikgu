@@ -1,18 +1,41 @@
-/* CikguDocs MVP. Semua data disimpan dalam pelayar (localStorage). */
+/* CikguDocs. Data disimpan dalam cloud (Supabase) bila log masuk, dengan salinan cache dalam pelayar. */
 const KEY = 'failProgramCikgu.v1';
 const $ = s => document.querySelector(s);
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
-let db = load();
+let cacheKey = KEY;
+let db = load(KEY);
 let view = 'programs', currentId = null, tab = 'info';
 
-function load() {
-  try { const d = JSON.parse(localStorage.getItem(KEY)); if (d && d.programs) return d; } catch (e) {}
+function load(key) {
+  try { const d = JSON.parse(localStorage.getItem(key)); if (d && d.programs) return d; } catch (e) {}
   return { school: {}, programs: [] };
 }
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify(db)); }
-  catch (e) { alert('Gagal simpan. Storan pelayar mungkin penuh (cuba kecilkan saiz logo/tandatangan).'); }
+  try { localStorage.setItem(cacheKey, JSON.stringify(db)); }
+  catch (e) { if (CLOUD.mode !== 'cloud') alert('Gagal simpan. Storan pelayar mungkin penuh (cuba kecilkan saiz logo/tandatangan).'); }
+  CLOUD.queueSave(db);
+}
+async function apiHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  const t = await CLOUD.token(); if (t) h.Authorization = 'Bearer ' + t;
+  return h;
+}
+const allImages = d => d.programs.flatMap(p => [...(p.gambar || []), ...(p.resit || [])]);
+function deleteImageIfUnused(g) {
+  if (!g || !g.path) return;
+  if (!allImages(db).some(x => x !== g && x.path === g.path)) CLOUD.deleteImage(g.path);
+}
+/* Pindahkan gambar dataURL ke storan cloud (selepas log masuk pertama atau pulih backup). */
+async function migrateInlineImages() {
+  if (CLOUD.mode !== 'cloud' || !CLOUD.user) return 0;
+  let n = 0;
+  for (const g of allImages(db)) {
+    if (!g.data || g.path) continue;
+    try { const path = await CLOUD.uploadImage(g.data.split(',')[1]); CLOUD.urls[path] = g.data; g.path = path; delete g.data; n++; } catch (e) {}
+  }
+  if (n) save();
+  return n;
 }
 
 const TABLES = {
@@ -194,7 +217,7 @@ function gallery(P, key, max) {
   const aiTag = (g, i) => key !== 'resit' ? '' : g.ai === 'reading' ? '<div class="ai-tag reading">AI sedang membaca…</div>'
     : g.ai === 'done' ? `<div class="ai-tag done">${esc(g.aiNote || 'Dimasukkan ke jadual')}</div>`
     : `<div class="ai-tag ${g.ai === 'error' ? 'error' : ''}">${g.ai === 'error' ? esc(g.aiNote) + ' ' : ''}<button class="small" data-readai="${i}">Baca dengan AI</button></div>`;
-  return `<div class="gallery">${imgs.map((g, i) => `<figure><img src="${g.data}" alt="">${aiTag(g, i)}<figcaption>
+  return `<div class="gallery">${imgs.map((g, i) => `<figure><img src="${imgSrc(g)}" alt="">${aiTag(g, i)}<figcaption>
       <input data-cap="${key},${i}" value="${esc(g.cap || '')}" placeholder="Kapsyen"><button class="small danger" data-rmgal="${key},${i}">✕</button></figcaption></figure>`).join('')}</div>
     ${imgs.length < max ? `<div class="row gal-actions">
       <label class="btn-like primary">Scan guna kamera<input type="file" accept="image/*" capture="environment" data-gal="${key}" data-max="${max}" hidden></label>
@@ -225,7 +248,7 @@ function aiView(P) {
         <label class="small" style="font-weight:400"><input type="file" id="ai-file" multiple accept="image/*,.pdf,.txt,.csv" style="width:auto"></label>
         <button class="primary" id="ai-send" ${aiBusy ? 'disabled' : ''}>Hantar</button>
       </div></div>
-    <div class="row muted" style="margin-top:8px">Kod akses: <input id="ai-kod" type="password" value="${esc(db.kodAkses || '')}" style="width:160px">
+    <div class="row muted" style="margin-top:8px">${CLOUD.mode === 'cloud' ? '' : `Kod akses: <input id="ai-kod" type="password" value="${esc(db.kodAkses || '')}" style="width:160px">`}
       <button class="small" id="ai-clear">Padam perbualan</button></div>`;
 }
 const fileToB64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = no; r.readAsDataURL(f); });
@@ -243,12 +266,13 @@ async function prepFile(f) {
 async function readReceipt(P, g, b64) {
   g.ai = 'reading'; g.aiNote = ''; save(); if (cur() === P && tab === 'perbelanjaan') render();
   try {
-    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+    const r = await fetch('/api/chat', { method: 'POST', headers: await apiHeaders(), body: JSON.stringify({
       kod: db.kodAkses || '', program: { nama: P.nama, tarikh: P.tarikh, perbelanjaan: P.perbelanjaan || [] }, sejarah: [],
       mesej: 'Baca resit dalam gambar ini. Masukkan SATU baris sahaja ke jadual "perbelanjaan" dengan mod "tambah": [Tarikh DD/MM/YYYY, Pembekal/nama kedai, No. Resit, Perkara (ringkaskan item), Jumlah keseluruhan RM nombor sahaja]. Jangan ubah medan atau jadual lain. Jika gambar bukan resit atau tidak jelas, jangan tambah apa-apa dan terangkan dalam balasan.',
       lampiran: [{ name: 'resit.jpg', type: 'image/jpeg', data: b64 }] }) });
     const out = await r.json().catch(() => ({ error: 'AI tidak dapat dihubungi (buka melalui link hosting).' }));
-    if (r.status === 401) throw new Error('Isi kod akses dalam Cikgu AI Assistant dahulu.');
+    if (r.status === 401) throw new Error(out.error || 'Isi kod akses dalam Cikgu AI Assistant dahulu.');
+    if (r.status === 403) throw new Error(out.error);
     if (!r.ok || out.error) throw new Error(out.error || 'Ralat ' + r.status);
     const t = (out.jadual || []).find(j => j.jadual === 'perbelanjaan' && (j.baris || []).length);
     if (!t) throw new Error(out.balasan || 'Resit tidak dapat dibaca.');
@@ -283,7 +307,7 @@ async function sendAI() {
   P.chat.push({ role: 'user', text: msg || '(lampiran)', files: aiFiles.map(f => f.name).join(', ') || undefined });
   const lampiran = aiFiles; aiFiles = []; aiBusy = true; save(); render();
   try {
-    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    const r = await fetch('/api/chat', { method: 'POST', headers: await apiHeaders(),
       body: JSON.stringify({ kod: db.kodAkses || '', program: programData, sejarah, mesej: msg, lampiran }) });
     const out = await r.json().catch(() => ({ error: 'Pelayan AI tidak dapat dihubungi. Pastikan app dibuka melalui link hosting (bukan fail tempatan).' }));
     if (!r.ok || out.error) throw new Error(out.error || 'Ralat ' + r.status);
@@ -324,7 +348,9 @@ function bind() {
   });
   app.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
     const p = db.programs.find(x => x.id === b.dataset.del);
-    if (confirm(`Padam program "${p.nama}"? Tindakan ini tidak boleh dibatalkan.`)) { db.programs = db.programs.filter(x => x !== p); save(); render(); }
+    if (confirm(`Padam program "${p.nama}"? Tindakan ini tidak boleh dibatalkan.`)) {
+      db.programs = db.programs.filter(x => x !== p);
+      [...(p.gambar || []), ...(p.resit || [])].forEach(deleteImageIfUnused); save(); render(); }
   });
 
   // medan teks
@@ -370,7 +396,7 @@ function bind() {
     $('#ai-msg').oninput = e => { aiDraft = e.target.value; };
     $('#ai-send').onclick = sendAI;
     $('#ai-msg').onkeydown = e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendAI(); };
-    $('#ai-kod').oninput = e => { db.kodAkses = e.target.value; save(); };
+    if ($('#ai-kod')) $('#ai-kod').oninput = e => { db.kodAkses = e.target.value; save(); };
     $('#ai-file').onchange = async e => { for (const f of e.target.files) aiFiles.push(await prepFile(f)); render(); };
     document.querySelectorAll('[data-rmfile]').forEach(b => b.onclick = () => { aiFiles.splice(+b.dataset.rmfile, 1); render(); });
     $('#ai-clear').onclick = () => { cur().chat = []; save(); render(); };
@@ -381,16 +407,21 @@ function bind() {
     const added = [];
     for (const f of inp.files) {
       if (P[key].length >= max) break;
-      const g = { data: 'data:image/jpeg;base64,' + await imgToJpeg(f, 1000), cap: '' };
+      const b64 = await imgToJpeg(f, 1000);
+      const g = { data: 'data:image/jpeg;base64,' + b64, cap: '' };
+      if (CLOUD.mode === 'cloud' && CLOUD.user) {
+        try { const path = await CLOUD.uploadImage(b64); CLOUD.urls[path] = g.data; g.path = path; delete g.data; }
+        catch (e) { toast('Gambar disimpan sementara dalam pelayar (gagal muat naik).'); }
+      }
       P[key].push(g);
       if (key === 'resit') added.push({ g, hi: await imgToJpeg(f, 1600) });
     }
     save(); render();
     for (const a of added) await readReceipt(P, a.g, a.hi);
   });
-  app.querySelectorAll('[data-readai]').forEach(b => b.onclick = () => { const P = cur(); const g = P.resit[+b.dataset.readai]; readReceipt(P, g, g.data.split(',')[1]); });
+  app.querySelectorAll('[data-readai]').forEach(b => b.onclick = () => { const P = cur(); const g = P.resit[+b.dataset.readai]; imgB64(g).then(b64 => readReceipt(P, g, b64)); });
   app.querySelectorAll('[data-cap]').forEach(inp => inp.oninput = () => { const [k, i] = inp.dataset.cap.split(','); cur()[k][+i].cap = inp.value; save(); });
-  app.querySelectorAll('[data-rmgal]').forEach(b => b.onclick = () => { const [k, i] = b.dataset.rmgal.split(','); cur()[k].splice(+i, 1); save(); render(); });
+  app.querySelectorAll('[data-rmgal]').forEach(b => b.onclick = () => { const [k, i] = b.dataset.rmgal.split(','); const [g] = cur()[k].splice(+i, 1); deleteImageIfUnused(g); save(); render(); });
   app.querySelectorAll('[data-doc]').forEach(b => b.onclick = () => showDoc(b.dataset.doc));
 
   const ex = $('#btn-export');
@@ -403,7 +434,7 @@ function bind() {
   if (imp) imp.onchange = () => {
     const r = new FileReader();
     r.onload = () => { try { const d = JSON.parse(r.result); if (!d.programs) throw 0;
-      if (confirm('Replace all current data with this backup?')) { db = d; save(); render(); } } catch (e) { alert('Invalid backup file.'); } };
+      if (confirm('Replace all current data with this backup?')) { db = d; save(); render(); migrateInlineImages().then(n => { if (n) render(); }); } } catch (e) { alert('Invalid backup file.'); } };
     r.readAsText(imp.files[0]);
   };
 }
@@ -432,11 +463,97 @@ $('#btn-back').onclick = () => {
   document.title = 'CikguDocs';
 };
 $('#btn-print').onclick = () => window.print();
-document.querySelectorAll('.topbar nav button').forEach(b => b.onclick = () => { if (editing) finishEdit(); view = b.dataset.view; render(); });
+document.querySelectorAll('.topbar nav button').forEach(b => b.onclick = () => { if (editing) finishEdit(); view = b.dataset.view;
+  if (view === 'school' && !db.school.nama) startEdit('school'); render(); });
 function toast(msg) {
   let t = $('#toast'); if (!t) { t = document.createElement('div'); t.id = 'toast'; t.className = 'toast no-print'; document.body.appendChild(t); }
   t.textContent = msg; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 1800);
 }
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && aiOpen) { aiOpen = false; aiAnim = true; render(); } });
 
-render();
+
+/* ===================== LOG MASUK & BOOT ===================== */
+function loginView(msg = '') {
+  return `<div class="login card">
+    <img src="logo.png" alt="Testpaper.com.my" class="login-logo">
+    <h1>Selamat datang ke CikguDocs</h1>
+    <p class="muted">Isi sekali, siap semua! Log masuk untuk simpan program anda secara online dan buka dari mana-mana peranti.</p>
+    <button class="google-btn" id="btn-google"><svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-8l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>Log masuk dengan Google</button>
+    <div class="or"><span>atau guna e-mel</span></div>
+    <form id="email-form" class="row">
+      <input type="email" id="login-email" required placeholder="nama@moe-dl.edu.my" style="flex:1;min-width:200px">
+      <button class="primary" type="submit">Hantar pautan log masuk</button>
+    </form>
+    <p class="muted" id="login-msg">${esc(msg)}</p>
+  </div>`;
+}
+function showLogin(msg) {
+  document.body.classList.add('logged-out');
+  $('#ai-dock').innerHTML = '';
+  $('#app').innerHTML = loginView(msg);
+  $('#btn-google').onclick = () => CLOUD.signInGoogle().catch(e => { $('#login-msg').textContent = 'Gagal: ' + e.message; });
+  $('#email-form').onsubmit = async e => {
+    e.preventDefault(); const em = $('#login-email').value.trim();
+    try { await CLOUD.signInEmail(em); $('#login-msg').textContent = `Pautan log masuk telah dihantar ke ${em}. Buka e-mel anda dan klik pautan tersebut.`; }
+    catch (err) { $('#login-msg').textContent = 'Gagal hantar: ' + err.message; }
+  };
+}
+const SYNC_TXT = { saving: 'Menyimpan…', saved: 'Disimpan ke cloud', error: 'Gagal simpan, cuba lagi', offline: 'Tiada internet, akan disimpan bila online', idle: '' };
+function renderUserChip() {
+  const el = $('#user-chip'); if (!el) return;
+  if (CLOUD.mode !== 'cloud' || !CLOUD.user) { el.innerHTML = ''; return; }
+  el.innerHTML = `<span class="sync ${CLOUD.status}" id="sync-status">${SYNC_TXT[CLOUD.status] || ''}</span>
+    <span class="user-email" title="${esc(CLOUD.user.email || '')}">${esc(CLOUD.user.email || '')}</span>
+    <button class="small" id="btn-logout">Log keluar</button>`;
+  $('#btn-logout').onclick = async () => {
+    if (editing) finishEdit();
+    await CLOUD.signOut();
+    try { localStorage.removeItem(cacheKey); } catch (e) {}
+    db = { school: {}, programs: [] }; CLOUD.urls = {};
+    renderUserChip(); showLogin('Anda telah log keluar.');
+  };
+}
+async function startCloudSession() {
+  document.body.classList.remove('logged-out');
+  cacheKey = KEY + ':' + CLOUD.user.id;
+  const legacy = load(KEY);
+  db = load(cacheKey);
+  $('#app').innerHTML = '<div class="card"><p class="muted">Memuatkan data anda…</p></div>';
+  try {
+    const remote = await CLOUD.loadData();
+    if (remote && remote.data && remote.data.programs) {
+      db = remote.data;
+    } else if (legacy.programs.length || legacy.school.nama) {
+      db = legacy; // log masuk pertama: bawa data dari pelayar ini ke cloud
+      save(); await CLOUD.flush();
+      const n = await migrateInlineImages(); await CLOUD.flush();
+      toast(`Data dalam pelayar ini telah dipindahkan ke akaun anda${n ? ` (${n} gambar)` : ''}.`);
+    }
+    try { localStorage.setItem(cacheKey, JSON.stringify(db)); } catch (e) {}
+    await CLOUD.signUrls(allImages(db).map(g => g.path));
+  } catch (e) {
+    toast('Tidak dapat memuatkan dari cloud. Memaparkan salinan dalam pelayar.');
+  }
+  renderUserChip(); render();
+  migrateInlineImages().then(n => { if (n) render(); });
+}
+async function boot() {
+  CLOUD._onStatus = () => { const el = $('#sync-status'); if (el) { el.className = 'sync ' + CLOUD.status; el.textContent = SYNC_TXT[CLOUD.status] || ''; } };
+  await CLOUD.init();
+  if (CLOUD.mode !== 'cloud') { render(); return; }
+  CLOUD.onAuthChange(user => {
+    const was = CLOUD.user && CLOUD.user.id; CLOUD.user = user;
+    if (user && user.id !== was) startCloudSession();
+  });
+  if (CLOUD.user) await startCloudSession(); else showLogin();
+  // Segerakkan semula bila kembali ke tab ini (cth: data diubah di telefon).
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState !== 'visible' || !CLOUD.user || editing || CLOUD.hasPending() || aiBusy) return;
+    const at = await CLOUD.remoteUpdatedAt().catch(() => null);
+    if (at && CLOUD.lastUpdated && at > CLOUD.lastUpdated) {
+      const remote = await CLOUD.loadData(); db = remote.data; await CLOUD.signUrls(allImages(db).map(g => g.path)); render(); toast('Data dikemas kini dari peranti lain.');
+    }
+  });
+  window.addEventListener('beforeunload', e => { if (CLOUD.hasPending()) { CLOUD.flush(); e.preventDefault(); e.returnValue = ''; } });
+}
+boot();

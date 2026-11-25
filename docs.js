@@ -172,7 +172,7 @@ const DOCS = {
         <td style="width:50%;height:100px">Disediakan oleh:<br><br><br>.........................<br>(${esc(P.penyelaras || '')})<br>${esc(P.jawatanPenyelaras || 'Penyelaras Program')}</td>
         <td>Disahkan oleh:<br><br><br>.........................<br>(${esc(S.pengetua || '')})<br>${esc(S.jawatanPengetua || 'Pengetua')}</td></tr></table></div>
       ${chunk(resit, 4).map((g, pi) => `<div class="page"><h1>LAMPIRAN RESIT ${resit.length > 4 ? '(' + (pi + 1) + ')' : ''}</h1>
-        <div class="photo-grid">${g.map(x => `<figure><img src="${x.data}" alt=""><figcaption>${esc(x.cap)}</figcaption></figure>`).join('')}</div></div>`).join('')}`;
+        <div class="photo-grid">${g.map(x => `<figure><img src="${imgSrc(x)}" alt=""><figcaption>${esc(x.cap)}</figcaption></figure>`).join('')}</div></div>`).join('')}`;
   } },
 
   laporanProgram: { tajuk: 'Laporan Program (OPR)', gen(S, P) {
@@ -192,7 +192,7 @@ const DOCS = {
         ${row('Kekuatan', nl(P.kekuatan))}
         ${row('Kelemahan', nl(P.kelemahan))}
         ${row('Cadangan Penambahbaikan', nl(P.cadangan))}</table>
-      ${g.length ? `<div class="photo-grid opr-photos">${g.map(x => `<figure><img src="${x.data}" alt=""><figcaption>${esc(x.cap)}</figcaption></figure>`).join('')}</div>` : ''}
+      ${g.length ? `<div class="photo-grid opr-photos">${g.map(x => `<figure><img src="${imgSrc(x)}" alt=""><figcaption>${esc(x.cap)}</figcaption></figure>`).join('')}</div>` : ''}
       <table class="doc" style="margin-top:10px;font-size:9.5pt"><tr>
         <td style="width:50%;height:70px">Disediakan oleh:<br><br>.........................<br>(${esc(P.penyelaras || '')})</td>
         <td>Disahkan oleh:<br><br>.........................<br>(${esc(S.pengetua || '')})</td></tr></table></div>`;

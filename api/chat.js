@@ -1,5 +1,8 @@
 // Vercel serverless function: pembantu AI untuk CikguDocs.
-// Env yang diperlukan: ANTHROPIC_API_KEY. Pilihan: KOD_AKSES (kod yang cikgu perlu masukkan).
+// Env yang diperlukan: ANTHROPIC_API_KEY.
+// Jika SUPABASE_URL + SUPABASE_ANON_KEY ditetapkan: pengguna mesti log masuk. Pilihan EMEL_DIBENARKAN
+// (senarai dipisah koma, cth "cikgu@gmail.com,@moe-dl.edu.my") mengehadkan siapa boleh guna AI.
+// Tanpa Supabase: pilihan KOD_AKSES (kod yang cikgu perlu masukkan).
 import Anthropic from "@anthropic-ai/sdk";
 
 export const config = { maxDuration: 60 };
@@ -64,12 +67,38 @@ Cara anda bertindak:
 - Jika soalan biasa (bukan permintaan mengisi data), jawab dalam "balasan" dan biarkan medan/jadual kosong.
 - "balasan" mesti ringkas: nyatakan apa yang anda ubah dan apa yang guru perlu semak.`;
 
+async function checkUser(header) {
+  const token = (header || "").replace(/^Bearer\s+/i, "");
+  if (!token) return { ok: false, status: 401, error: "Sila log masuk untuk guna Cikgu AI Assistant." };
+  let user;
+  try {
+    const r = await fetch(`${process.env.SUPABASE_URL}/auth/v1/user`, {
+      headers: { Authorization: `Bearer ${token}`, apikey: process.env.SUPABASE_ANON_KEY },
+    });
+    if (!r.ok) return { ok: false, status: 401, error: "Sesi tamat. Sila log masuk semula." };
+    user = await r.json();
+  } catch {
+    return { ok: false, status: 502, error: "Tidak dapat mengesahkan log masuk. Cuba lagi." };
+  }
+  const allow = (process.env.EMEL_DIBENARKAN || "").split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
+  const email = String(user.email || "").toLowerCase();
+  if (allow.length && !allow.some(a => (a.startsWith("@") ? email.endsWith(a) : email === a))) {
+    return { ok: false, status: 403, error: "Akaun anda belum dibenarkan menggunakan AI. Hubungi pentadbir CikguDocs." };
+  }
+  return { ok: true, user };
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).json({ error: "Guna POST." });
   if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: "Pelayan belum dikonfigurasi (ANTHROPIC_API_KEY tiada)." });
 
   const { kod, program, sejarah = [], mesej = "", lampiran = [] } = req.body || {};
-  if (process.env.KOD_AKSES && kod !== process.env.KOD_AKSES) return res.status(401).json({ error: "Kod akses salah." });
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+    const auth = await checkUser(req.headers.authorization);
+    if (!auth.ok) return res.status(auth.status).json({ error: auth.error });
+  } else if (process.env.KOD_AKSES && kod !== process.env.KOD_AKSES) {
+    return res.status(401).json({ error: "Kod akses salah." });
+  }
   if (!mesej.trim() && !lampiran.length) return res.status(400).json({ error: "Mesej kosong." });
 
   // Sejarah perbualan (teks sahaja), maks 10 giliran terakhir.

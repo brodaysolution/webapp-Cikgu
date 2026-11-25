@@ -21,7 +21,8 @@ Webapp untuk guru menjana dokumen program sekolah: **isi maklumat sekali, siap s
 4. Isi tab Maklumat, Jawatankuasa, Tetamu dan lain-lain. Senarai boleh ditampal terus dari Excel.
 5. Buka tab **Jana Dokumen**, kemudian **Cetak / Simpan PDF**.
 
-Data disimpan dalam pelayar (localStorage). Gunakan butang **Data Backup** untuk muat turun salinan.
+Bila Supabase dikonfigurasi, pengguna log masuk (Google atau pautan e-mel) dan data serta gambar disimpan secara online.
+Tanpa Supabase, data disimpan dalam pelayar (localStorage); gunakan butang **Data Backup** untuk muat turun salinan.
 `contoh-output.pdf` ialah contoh hasil penjanaan.
 
 ## Cikgu AI Assistant
@@ -39,6 +40,20 @@ Backend: `api/chat.js` (Vercel serverless function, Claude API). API key disimpa
    - `KOD_AKSES` (pilihan, disyorkan): kod rahsia yang cikgu perlu isi dalam Cikgu AI Assistant, supaya orang luar tidak guna kredit API anda.
 4. **Redeploy**. Kongsi link `https://<projek>.vercel.app` dengan cikgu.
 
+## Log masuk & simpanan online (Supabase)
+1. Daftar di https://supabase.com dan cipta projek baharu (pilih region Singapore).
+2. **SQL Editor**: tampal kandungan `supabase/setup.sql` dan tekan **Run**. Ini mencipta jadual `user_data`, bucket peribadi `gambar`, dan polisi keselamatan (setiap pengguna hanya nampak data sendiri).
+3. **Authentication > URL Configuration**: Site URL = link Vercel anda (cth `https://cikgudocs.vercel.app`), dan tambah link yang sama dalam Redirect URLs.
+4. **Authentication > Providers > Google**: aktifkan, masukkan Client ID dan Secret dari Google Cloud Console (OAuth client jenis Web, redirect URI = `https://<projek>.supabase.co/auth/v1/callback`). Log masuk e-mel (pautan ajaib) aktif secara lalai.
+5. **Project Settings > API**: salin Project URL dan anon public key.
+6. Dalam Vercel > Environment Variables tambah:
+   - `SUPABASE_URL`, `SUPABASE_ANON_KEY` (Config, bukan rahsia)
+   - `EMEL_DIBENARKAN` (pilihan): siapa boleh guna AI, cth `@moe-dl.edu.my,cikgu.ali@gmail.com`
+   - `KOD_AKSES` tidak lagi digunakan bila Supabase aktif.
+7. Redeploy.
+
+Data pelayar sedia ada dipindahkan ke akaun secara automatik pada log masuk pertama.
+
 ## Fasa seterusnya
 - Sijil dan backdrop
-- Log masuk dan perkongsian dengan AJK
+- Perkongsian program dengan AJK
