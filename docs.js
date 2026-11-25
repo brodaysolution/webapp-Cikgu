@@ -11,6 +11,7 @@ function tarikhMs(iso, withDay) {
 }
 const rm = n => 'RM ' + (Number(n) || 0).toLocaleString('ms-MY', {minimumFractionDigits:2, maximumFractionDigits:2});
 const lines = s => String(s || '').split('\n').map(x => x.trim()).filter(Boolean);
+const num = v => parseFloat(String(v ?? '').replace(/[^0-9.]/g, '')) || 0;
 const rows = list => (list || []).filter(r => r.some(c => String(c || '').trim()));
 
 function letterhead(S) {
@@ -123,4 +124,78 @@ const DOCS = {
       ${progInfo(P)}
       <table class="doc"><tr><th style="width:6%">Bil</th><th>Nama</th><th style="width:25%">Kelas / Jawatan</th><th style="width:22%">Tandatangan</th></tr>${body}</table></div>`;
   } },
+  sebutHarga: { tajuk: 'Perbandingan Sebut Harga', gen(S, P) {
+    const it = rows(P.sebutharga);
+    const names = ['A', 'B', 'C'].map(x => P['pembekal' + x] || 'Pembekal ' + x);
+    const tot = [0, 0, 0];
+    const body = it.map((r, i) => {
+      const q = num(r[1]);
+      const cells = [0, 1, 2].map(k => { const t = q * num(r[2 + k]); tot[k] += t;
+        return `<td style="text-align:right">${r[2 + k] ? rm(num(r[2 + k])) : '-'}</td><td style="text-align:right">${r[2 + k] ? rm(t) : '-'}</td>`; }).join('');
+      return `<tr><td class="center">${i + 1}</td><td>${esc(r[0])}</td><td class="center">${esc(r[1])}</td>${cells}</tr>`;
+    }).join('');
+    const valid = [0, 1, 2].filter(k => tot[k] > 0);
+    const best = valid.length ? valid.reduce((a, b) => tot[b] < tot[a] ? b : a) : -1;
+    return `<div class="page landscape">${letterhead(S)}
+      <h1>JADUAL PERBANDINGAN SEBUT HARGA<br>${esc((P.nama || '').toUpperCase())}</h1>
+      <table class="doc" style="font-size:9.5pt"><tr><th rowspan="2">Bil</th><th rowspan="2">Perkara</th><th rowspan="2">Kuantiti</th>
+        ${names.map(n => `<th colspan="2">${esc(n)}</th>`).join('')}</tr>
+        <tr>${names.map(() => '<th>Harga Seunit</th><th>Jumlah</th>').join('')}</tr>${body}
+        <tr><th colspan="3" style="text-align:right">JUMLAH KESELURUHAN</th>${tot.map((t, k) => `<th colspan="2" style="text-align:right">${t ? rm(t) : '-'}</th>`).join('')}</tr></table>
+      <h3>SYOR</h3>
+      <p>${best >= 0 ? `Berdasarkan perbandingan di atas, adalah disyorkan supaya sebut harga daripada <b>${esc(names[best])}</b> dengan jumlah <b>${rm(tot[best])}</b> dipilih kerana menawarkan harga terendah dan memenuhi keperluan program.` : 'Sila lengkapkan harga daripada pembekal dalam tab Sebut Harga.'}</p>
+      <table class="doc" style="margin-top:24px"><tr>
+        <td style="width:33%;height:100px">Disediakan oleh:<br><br><br>.........................<br>(${esc(P.penyelaras || '')})<br>${esc(P.jawatanPenyelaras || 'Penyelaras Program')}</td>
+        <td style="width:33%">Disemak oleh:<br><br><br>.........................<br>(&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)<br>Setiausaha Kewangan</td>
+        <td>Diluluskan / Tidak diluluskan:<br><br><br>.........................<br>(${esc(S.pengetua || '')})<br>${esc(S.jawatanPengetua || 'Pengetua')}</td></tr></table></div>`;
+  } },
+
+  laporanKewangan: { tajuk: 'Laporan Kewangan', gen(S, P) {
+    const pr = rows(P.peruntukan), bl = rows(P.perbelanjaan);
+    const tIn = pr.reduce((a, r) => a + num(r[1]), 0), tOut = bl.reduce((a, r) => a + num(r[4]), 0);
+    const resit = P.resit || [];
+    return `<div class="page">${letterhead(S)}
+      <h1>LAPORAN KEWANGAN<br>${esc((P.nama || '').toUpperCase())}</h1>${progInfo(P)}
+      <h3>A. PERUNTUKAN / PENDAPATAN</h3>
+      <table class="doc"><tr><th style="width:8%">Bil</th><th>Sumber</th><th style="width:25%">Jumlah</th></tr>
+      ${pr.map((r, i) => `<tr><td class="center">${i + 1}</td><td>${esc(r[0])}</td><td style="text-align:right">${rm(num(r[1]))}</td></tr>`).join('')}
+      <tr><th colspan="2" style="text-align:right">JUMLAH PERUNTUKAN (A)</th><th style="text-align:right">${rm(tIn)}</th></tr></table>
+      <h3>B. PERBELANJAAN</h3>
+      <table class="doc"><tr><th style="width:6%">Bil</th><th style="width:13%">Tarikh</th><th>Pembekal</th><th>No. Resit</th><th>Perkara</th><th style="width:16%">Jumlah</th></tr>
+      ${bl.map((r, i) => `<tr><td class="center">${i + 1}</td><td>${esc(r[0])}</td><td>${esc(r[1])}</td><td>${esc(r[2])}</td><td>${esc(r[3])}</td><td style="text-align:right">${rm(num(r[4]))}</td></tr>`).join('')}
+      <tr><th colspan="5" style="text-align:right">JUMLAH PERBELANJAAN (B)</th><th style="text-align:right">${rm(tOut)}</th></tr></table>
+      <h3>C. BAKI (A − B)</h3>
+      <table class="doc" style="width:60%"><tr><th>Baki</th><td style="text-align:right;font-weight:bold">${rm(tIn - tOut)}</td></tr></table>
+      ${tIn - tOut < 0 ? '<p><i>Nota: Perbelanjaan melebihi peruntukan.</i></p>' : ''}
+      ${resit.length ? `<p>Lampiran: ${resit.length} salinan resit dilampirkan.</p>` : ''}
+      <table class="doc" style="margin-top:24px"><tr>
+        <td style="width:50%;height:100px">Disediakan oleh:<br><br><br>.........................<br>(${esc(P.penyelaras || '')})<br>${esc(P.jawatanPenyelaras || 'Penyelaras Program')}</td>
+        <td>Disahkan oleh:<br><br><br>.........................<br>(${esc(S.pengetua || '')})<br>${esc(S.jawatanPengetua || 'Pengetua')}</td></tr></table></div>
+      ${chunk(resit, 4).map((g, pi) => `<div class="page"><h1>LAMPIRAN RESIT ${resit.length > 4 ? '(' + (pi + 1) + ')' : ''}</h1>
+        <div class="photo-grid">${g.map(x => `<figure><img src="${x.data}" alt=""><figcaption>${esc(x.cap)}</figcaption></figure>`).join('')}</div></div>`).join('')}`;
+  } },
+
+  laporanProgram: { tajuk: 'Laporan Program (OPR)', gen(S, P) {
+    const g = (P.gambar || []).slice(0, 6);
+    const row = (k, v) => `<tr><th style="width:24%;text-align:left">${k}</th><td>${v}</td></tr>`;
+    return `<div class="page opr">${letterhead(S)}
+      <h1>LAPORAN PROGRAM (ONE PAGE REPORT)</h1>
+      <table class="doc" style="font-size:9.5pt">
+        ${row('Nama Program', '<b>' + esc(P.nama) + '</b>')}
+        ${row('Tarikh / Masa', tarikhMs(P.tarikh, true) + (P.masa ? ' · ' + esc(P.masa) : ''))}
+        ${row('Tempat', esc(P.tempat))}
+        ${row('Anjuran', esc(P.anjuran || S.nama))}
+        ${row('Sasaran / Peserta', esc(P.sasaran) + (P.bilPeserta ? ' (' + esc(P.bilPeserta) + ' orang)' : ''))}
+        ${row('Objektif', `<ol style="margin:0;padding-left:18px">${lines(P.objektif).map(o => `<li>${esc(o)}</li>`).join('')}</ol>`)}
+        ${row('Ringkasan Aktiviti', nl(P.rumusan))}
+        ${row('Pencapaian', nl(P.pencapaian))}
+        ${row('Kekuatan', nl(P.kekuatan))}
+        ${row('Kelemahan', nl(P.kelemahan))}
+        ${row('Cadangan Penambahbaikan', nl(P.cadangan))}</table>
+      ${g.length ? `<div class="photo-grid opr-photos">${g.map(x => `<figure><img src="${x.data}" alt=""><figcaption>${esc(x.cap)}</figcaption></figure>`).join('')}</div>` : ''}
+      <table class="doc" style="margin-top:10px;font-size:9.5pt"><tr>
+        <td style="width:50%;height:70px">Disediakan oleh:<br><br>.........................<br>(${esc(P.penyelaras || '')})</td>
+        <td>Disahkan oleh:<br><br>.........................<br>(${esc(S.pengetua || '')})</td></tr></table></div>`;
+  } },
 };
+const chunk = (a, n) => { const o = []; for (let i = 0; i < a.length; i += n) o.push(a.slice(i, i + n)); return o; };

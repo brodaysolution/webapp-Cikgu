@@ -10,6 +10,9 @@ Webapp untuk guru menjana dokumen program sekolah: **isi maklumat sekali, siap s
 - Surat jemputan (satu surat bagi setiap tetamu)
 - Buku program (kulit, atur cara, kata aluan, penerima anugerah, AJK)
 - Senarai kehadiran
+- Jadual perbandingan sebut harga (3 pembekal, syor harga terendah, landskap)
+- Laporan kewangan (peruntukan, perbelanjaan, baki + lampiran gambar resit)
+- Laporan program / OPR satu muka surat dengan gambar
 
 ## Cara guna
 1. Buka link hosting (lihat bahagian Hosting). `index.html` juga boleh dibuka terus, tetapi Pembantu AI hanya berfungsi melalui hosting.
@@ -37,7 +40,5 @@ Backend: `api/chat.js` (Vercel serverless function, Claude API). API key disimpa
 4. **Redeploy**. Kongsi link `https://<projek>.vercel.app` dengan cikgu.
 
 ## Fasa seterusnya
-- Sebut harga, resit dan laporan kewangan automatik
-- Laporan program / OPR dengan gambar
 - Sijil dan backdrop
 - Log masuk dan perkongsian dengan AJK

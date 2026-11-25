@@ -7,8 +7,9 @@ export const config = { maxDuration: 60 };
 const client = new Anthropic();
 
 const FIELD_KEYS = ["nama", "tarikh", "masa", "tempat", "anjuran", "perasmi", "rujFail", "tarikhSurat",
-  "penyelaras", "jawatanPenyelaras", "latar", "objektif", "sasaran", "sumberKewangan", "kataAlu", "penutup"];
-const TABLE_KEYS = ["ajk", "tetamu", "aturcara", "penerima", "kehadiran", "bajet"];
+  "penyelaras", "jawatanPenyelaras", "latar", "objektif", "sasaran", "sumberKewangan", "kataAlu", "penutup",
+  "bilPeserta", "pencapaian", "rumusan", "kekuatan", "kelemahan", "cadangan", "pembekalA", "pembekalB", "pembekalC"];
+const TABLE_KEYS = ["ajk", "tetamu", "aturcara", "penerima", "kehadiran", "bajet", "sebutharga", "peruntukan", "perbelanjaan"];
 
 const SCHEMA = {
   type: "object",
@@ -40,7 +41,7 @@ const SCHEMA = {
 };
 
 const SYSTEM = `Anda pembantu dokumentasi program sekolah untuk guru di Malaysia, dalam webapp "CikguDocs".
-Guru akan minta anda isi atau tulis maklumat program (kertas kerja, AJK, tetamu, atur cara, penerima anugerah, kehadiran, bajet). Mereka mungkin lampirkan gambar atau PDF rujukan (contoh: kertas kerja lama, senarai nama, sebut harga, poster).
+Guru akan minta anda isi atau tulis maklumat program (kertas kerja, AJK, tetamu, atur cara, penerima anugerah, kehadiran, bajet, sebut harga, peruntukan, perbelanjaan/resit, laporan program). Mereka mungkin lampirkan gambar atau PDF rujukan (contoh: kertas kerja lama, senarai nama, sebut harga, poster).
 
 Cara anda bertindak:
 - Kemas kini data program melalui "medan" dan "jadual". Webapp akan menjana surat dan dokumen daripada data ini, jadi anda tidak perlu menulis surat penuh.
@@ -52,6 +53,11 @@ Cara anda bertindak:
   penerima: [Nama, Kelas, Anugerah]
   kehadiran: [Nama, Kelas/Jawatan]
   bajet: [Perkara, Kuantiti (nombor), Harga seunit RM (nombor sahaja)]
+  sebutharga: [Perkara, Kuantiti, Harga seunit Pembekal A, Harga seunit Pembekal B, Harga seunit Pembekal C] (nama pembekal dalam medan pembekalA/B/C)
+  peruntukan: [Sumber, Jumlah RM]
+  perbelanjaan: [Tarikh DD/MM/YYYY, Pembekal, No. Resit, Perkara, Jumlah RM]
+- Bila guru lampirkan gambar resit/invois, ekstrak setiap resit sebagai satu baris "perbelanjaan" (mod "tambah"). Bila guru lampirkan sebut harga pembekal, isi "sebutharga" dan nama pembekal.
+- Medan laporan selepas program: bilPeserta, pencapaian, rumusan (ringkasan aktiviti), kekuatan, kelemahan, cadangan. Tulis berdasarkan maklumat yang guru beri; jangan reka angka kehadiran.
 - mod "ganti" menggantikan seluruh jadual; "tambah" menambah baris. Guna "ganti" untuk jadual yang anda susun semula sepenuhnya.
 - Bila mengekstrak daripada lampiran, salin nama dan angka dengan tepat. Jangan reka nama orang, harga atau tarikh yang tidak diberi; tinggalkan kosong dan beritahu guru apa yang perlu dilengkapkan.
 - Guna Bahasa Melayu baku yang sesuai untuk dokumen rasmi sekolah KPM.

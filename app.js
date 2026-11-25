@@ -22,6 +22,9 @@ const TABLES = {
   penerima:  { label: 'Penerima Anugerah', cols: ['Nama', 'Kelas', 'Anugerah'] },
   kehadiran: { label: 'Kehadiran', cols: ['Nama', 'Kelas / Jawatan'] },
   bajet:     { label: 'Bajet', cols: ['Perkara', 'Kuantiti', 'Harga seunit (RM)'] },
+  sebutharga:   { label: 'Sebut Harga', cols: ['Perkara', 'Kuantiti', 'Harga seunit Pembekal A', 'Harga seunit Pembekal B', 'Harga seunit Pembekal C'] },
+  peruntukan:   { label: 'Peruntukan', cols: ['Sumber (cth: PIBG)', 'Jumlah (RM)'] },
+  perbelanjaan: { label: 'Resit & Perbelanjaan', cols: ['Tarikh', 'Pembekal', 'No. Resit', 'Perkara', 'Jumlah (RM)'] },
 };
 
 const TEMPLATES = {
@@ -95,7 +98,7 @@ function schoolView() {
 function programView() {
   const P = cur();
   if (!P) { view = 'programs'; return listView(); }
-  const tabs = [['info', 'Maklumat'], ...Object.entries(TABLES).map(([k, t]) => [k, t.label]), ['ai', '🤖 Pembantu AI'], ['docs', '📄 Jana Dokumen']];
+  const tabs = [['info', 'Maklumat'], ...Object.entries(TABLES).map(([k, t]) => [k, t.label]), ['laporan', '📸 Laporan & Gambar'], ['ai', '🤖 Pembantu AI'], ['docs', '📄 Jana Dokumen']];
   let body;
   if (tab === 'info') body = `<div class="grid" data-scope="program">
       ${field(P, 'nama', 'Nama program', 'text', 'full')}
@@ -109,6 +112,15 @@ function programView() {
       ${field(P, 'sumberKewangan', 'Sumber kewangan (cth: PIBG / SUWA)', 'text', 'full')}
       ${field(P, 'kataAlu', 'Kata aluan (untuk buku program, pilihan)', 'textarea', 'full')}
       ${field(P, 'penutup', 'Penutup kertas kerja (pilihan)', 'textarea', 'full')}</div>`;
+  else if (tab === 'laporan') body = `<h2>Laporan Program (OPR)</h2>
+    <p class="muted">Isi selepas program selesai. Digunakan untuk dokumen Laporan Program (OPR) satu muka surat.</p>
+    <div class="grid" data-scope="program">
+      ${field(P, 'bilPeserta', 'Bilangan peserta / kehadiran')}${field(P, 'pencapaian', 'Pencapaian objektif (cth: 95% tercapai)')}
+      ${field(P, 'rumusan', 'Ringkasan aktiviti', 'textarea', 'full')}
+      ${field(P, 'kekuatan', 'Kekuatan', 'textarea')}${field(P, 'kelemahan', 'Kelemahan', 'textarea')}
+      ${field(P, 'cadangan', 'Cadangan penambahbaikan', 'textarea', 'full')}</div>
+    <h3>Gambar program (maks 6)</h3>
+    ${gallery(P, 'gambar', 6)}`;
   else if (tab === 'ai') body = aiView(P);
   else if (tab === 'docs') body = `<p class="muted">Pilih dokumen untuk pratonton, kemudian tekan <b>Cetak / Simpan PDF</b> (pilih "Save as PDF" dalam dialog cetak).</p>
       <div class="doc-grid">${Object.entries(DOCS).map(([k, d]) => `<button data-doc="${k}"><b>${d.tajuk}</b>
@@ -122,13 +134,31 @@ function programView() {
 
 function tableEditor(key, P) {
   const t = TABLES[key]; const data = P[key] || [];
-  return `<h2>${t.label}</h2>
+  const extraTop = key === 'sebutharga' ? `<div class="grid" data-scope="program" style="margin-bottom:12px">
+      ${field(P, 'pembekalA', 'Pembekal A')}${field(P, 'pembekalB', 'Pembekal B')}${field(P, 'pembekalC', 'Pembekal C')}</div>` : '';
+  const sum = c => rows(data).reduce((s, r) => s + (parseFloat(String(r[c]).replace(/[^0-9.]/g, '')) || 0), 0);
+  let foot = '';
+  if (key === 'bajet') foot = `<b>Jumlah: ${rm(rows(data).reduce((s, r) => s + (+r[1] || 0) * (+r[2] || 0), 0))}</b>`;
+  if (key === 'peruntukan') foot = `<b>Jumlah peruntukan: ${rm(sum(1))}</b>`;
+  if (key === 'perbelanjaan') foot = `<b>Jumlah perbelanjaan: ${rm(sum(4))}</b>`;
+  if (key === 'sebutharga') foot = ['A', 'B', 'C'].map((x, i) => `<b>${esc(P['pembekal' + x] || 'Pembekal ' + x)}: ${rm(rows(data).reduce((s, r) => s + (+r[1] || 0) * (+r[2 + i] || 0), 0))}</b>`).join(' · ');
+  const extraBottom = key === 'perbelanjaan' ? `<h3>Gambar resit (lampiran laporan kewangan)</h3>
+      <p class="muted">Tip: lampirkan gambar resit dalam tab 🤖 Pembantu AI dan minta "Masukkan resit ini ke perbelanjaan" untuk isi jadual secara automatik.</p>${gallery(P, 'resit', 12)}` : '';
+  return `<h2>${t.label}</h2>${extraTop}
     <p class="muted">Tip: salin beberapa baris dari Excel / Google Sheets dan tampal ke dalam mana-mana sel — baris baharu akan ditambah automatik.</p>
     <div class="tbl-wrap"><table class="edit"><tr><th>#</th>${t.cols.map(c => `<th>${c}</th>`).join('')}<th></th></tr>
     ${data.map((r, i) => `<tr><td>${i + 1}</td>${t.cols.map((_, j) => `<td><input data-cell="${i},${j}" value="${esc(r[j] || '')}"></td>`).join('')}
       <td><button class="small danger" data-rmrow="${i}">✕</button></td></tr>`).join('')}</table></div>
     <div class="row" style="margin-top:8px"><button data-addrow>+ Tambah baris</button><button data-clear class="danger">Kosongkan</button>
-    ${key === 'bajet' ? `<b>Jumlah: ${rm(rows(data).reduce((s, r) => s + (+r[1] || 0) * (+r[2] || 0), 0))}</b>` : ''}</div>`;
+    ${foot}</div>${extraBottom}`;
+}
+
+function gallery(P, key, max) {
+  const imgs = P[key] || [];
+  return `<div class="gallery">${imgs.map((g, i) => `<figure><img src="${g.data}" alt=""><figcaption>
+      <input data-cap="${key},${i}" value="${esc(g.cap || '')}" placeholder="Kapsyen"><button class="small danger" data-rmgal="${key},${i}">✕</button></figcaption></figure>`).join('')}</div>
+    ${imgs.length < max ? `<label class="row" style="flex-direction:row;margin-top:8px">➕ Tambah gambar <input type="file" accept="image/*" multiple data-gal="${key}" data-max="${max}" style="width:auto"></label>` : ''}
+    <p class="muted">Gambar dikecilkan secara automatik dan disimpan dalam pelayar ini.</p>`;
 }
 
 /* ===================== PEMBANTU AI ===================== */
@@ -179,7 +209,7 @@ async function sendAI() {
   const total = aiFiles.reduce((s, f) => s + (f.data || f.text || '').length, 0);
   if (total > 3.5e6) { alert('Lampiran terlalu besar (maks ~2.5MB). Kurangkan fail atau halaman PDF.'); return; }
   P.chat = P.chat || [];
-  const { chat, ...programData } = P;
+  const { chat, gambar, resit, ...programData } = P;
   const sejarah = P.chat.map(m => ({ role: m.role, text: m.text }));
   P.chat.push({ role: 'user', text: msg || '(lampiran)', files: aiFiles.map(f => f.name).join(', ') || undefined });
   const lampiran = aiFiles; aiFiles = []; aiBusy = true; save(); render();
@@ -266,6 +296,13 @@ function bind() {
     $('#ai-clear').onclick = () => { cur().chat = []; save(); render(); };
     const c = $('#chat'); c.scrollTop = c.scrollHeight;
   }
+  app.querySelectorAll('[data-gal]').forEach(inp => inp.onchange = async () => {
+    const P = cur(), key = inp.dataset.gal, max = +inp.dataset.max; P[key] = P[key] || [];
+    for (const f of inp.files) { if (P[key].length >= max) break; P[key].push({ data: 'data:image/jpeg;base64,' + await imgToJpeg(f, 1000), cap: '' }); }
+    save(); render();
+  });
+  app.querySelectorAll('[data-cap]').forEach(inp => inp.oninput = () => { const [k, i] = inp.dataset.cap.split(','); cur()[k][+i].cap = inp.value; save(); });
+  app.querySelectorAll('[data-rmgal]').forEach(b => b.onclick = () => { const [k, i] = b.dataset.rmgal.split(','); cur()[k].splice(+i, 1); save(); render(); });
   app.querySelectorAll('[data-doc]').forEach(b => b.onclick = () => showDoc(b.dataset.doc));
 
   const ex = $('#btn-export');
