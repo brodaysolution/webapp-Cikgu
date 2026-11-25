@@ -50,7 +50,7 @@ table.edit input { border:none; padding:5px; border-radius:0; }
 img.thumb { max-height:60px; border:1px solid var(--line); border-radius:6px; }
 
 .site-footer { margin-top:24px; background:var(--ink); color:#fff; text-align:center; padding:26px 16px 22px; border-top:6px solid var(--pri); }
-.site-footer img { height:64px; background:#fff; border-radius:14px; padding:6px 10px; }
+.site-footer img { height:80px; }
 .site-footer .tagline { font-family:"Baloo 2", sans-serif; font-size:1.2em; font-weight:700; margin:12px 0 4px; color:#fff; }
 .site-footer .small-print { font-size:.85em; opacity:.75; margin:0; }
 .site-footer a { color:#a6e3ae; }
