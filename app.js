@@ -158,7 +158,11 @@ function gallery(P, key, max) {
   const imgs = P[key] || [];
   return `<div class="gallery">${imgs.map((g, i) => `<figure><img src="${g.data}" alt=""><figcaption>
       <input data-cap="${key},${i}" value="${esc(g.cap || '')}" placeholder="Kapsyen"><button class="small danger" data-rmgal="${key},${i}">✕</button></figcaption></figure>`).join('')}</div>
-    ${imgs.length < max ? `<label class="row" style="flex-direction:row;margin-top:8px">➕ Tambah gambar <input type="file" accept="image/*" multiple data-gal="${key}" data-max="${max}" style="width:auto"></label>` : ''}
+    ${imgs.length < max ? `<div class="row gal-actions">
+      <label class="btn-like primary">Scan guna kamera<input type="file" accept="image/*" capture="environment" data-gal="${key}" data-max="${max}" hidden></label>
+      <label class="btn-like">Upload dari galeri / fail<input type="file" accept="image/*" multiple data-gal="${key}" data-max="${max}" hidden></label>
+      <span class="muted">${imgs.length}/${max}</span></div>
+      <p class="muted">Di telefon, "Scan guna kamera" terus membuka kamera. Letakkan ${key === 'resit' ? 'resit' : 'subjek'} di permukaan rata dengan cahaya terang.</p>` : ''}
     <p class="muted">Gambar dikecilkan secara automatik dan disimpan dalam pelayar ini.</p>`;
 }
 

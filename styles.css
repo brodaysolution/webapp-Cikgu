@@ -97,6 +97,13 @@ a.open-ai { font-weight:700; color:var(--pri-dark); }
 @media (max-width:600px) { .ai-fab { right:16px; bottom:16px; } .ai-panel { right:8px; left:8px; bottom:8px; width:auto; max-height:calc(100vh - 16px); } }
 @media (prefers-reduced-motion: reduce) { .ai-fab.anim, .ai-panel.anim, .ai-fab:hover .spark { animation:none; } .ai-fab:hover { transform:none; } }
 
+/* butang label (untuk input fail) */
+.btn-like { display:inline-flex; flex-direction:row; align-items:center; font-weight:700; font-size:.95em; padding:8px 14px; border-radius:10px; border:2px solid var(--line); background:#fff; color:var(--txt); cursor:pointer; }
+.btn-like:hover { box-shadow:0 3px 0 var(--line); }
+.btn-like.primary { background:var(--pri); border-color:var(--pri); color:#fff; box-shadow:0 3px 0 var(--pri-dark); }
+.btn-like:focus-within { outline:3px solid var(--sun); }
+.gal-actions { margin-top:10px; }
+
 /* ===== Pratonton & cetakan ===== */
 .preview-bar { position:sticky; top:0; display:flex; justify-content:space-between; align-items:center; gap:8px;
   background:var(--ink); color:#fff; padding:8px 16px; z-index:5; }
