@@ -91,14 +91,12 @@ export default async function handler(req, res) {
   messages.push({ role: "user", content });
 
   try {
-    const response = await client.beta.messages.create({
-      model: "claude-opus-5-5",
+    const response = await client.messages.create({
+      model: "claude-haiku-5-5",
       max_tokens: 16000,
       system: SYSTEM,
       messages,
       output_config: { effort: "low", format: { type: "json_schema", schema: SCHEMA } },
-      betas: ["server-side-fallback-2026-07-01"],
-      fallbacks: "default",
     });
     if (response.stop_reason === "refusal") return res.status(200).json({ balasan: "Maaf, permintaan ini tidak dapat diproses. Cuba ubah ayat permintaan.", medan: [], jadual: [] });
     if (response.stop_reason === "max_tokens") return res.status(200).json({ balasan: "Jawapan terlalu panjang dan terpotong. Cuba minta sebahagian demi sebahagian.", medan: [], jadual: [] });
