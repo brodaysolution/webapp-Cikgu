@@ -34,7 +34,7 @@ const TEMPLATES = {
     latar: 'Majlis Hari Anugerah Kecemerlangan diadakan setiap tahun bagi meraikan dan menghargai kejayaan murid dalam bidang akademik, kokurikulum dan sahsiah. Majlis ini juga menjadi medium untuk memotivasikan murid lain agar terus berusaha mencapai kecemerlangan.',
     objektif: 'Menghargai kejayaan murid dalam akademik, kokurikulum dan sahsiah.\nMemotivasikan murid untuk terus cemerlang.\nMengeratkan hubungan antara sekolah, ibu bapa dan komuniti.',
     sasaran: 'Murid penerima anugerah, ibu bapa, guru dan tetamu jemputan.',
-    masa: '8.00 pagi hingga 12.30 tengah hari', tempat: 'Dewan Sekolah',
+    masa: '8.00 pagi – 12.30 tengah hari', tempat: 'Dewan Sekolah',
     ajk: [['Penaung', ''], ['Penasihat', ''], ['Pengerusi', ''], ['Naib Pengerusi', ''], ['Setiausaha', ''], ['Bendahari', ''],
           ['AJK Hadiah & Sijil', ''], ['AJK Pentas & Dekorasi', ''], ['AJK Jamuan', ''], ['AJK Protokol & Tetamu', ''],
           ['AJK Siaraya & Dokumentasi', ''], ['AJK Buku Program', ''], ['AJK Kehadiran Murid', '']],
