@@ -95,7 +95,7 @@ function schoolView() {
 function programView() {
   const P = cur();
   if (!P) { view = 'programs'; return listView(); }
-  const tabs = [['info', 'Maklumat'], ...Object.entries(TABLES).map(([k, t]) => [k, t.label]), ['docs', '📄 Jana Dokumen']];
+  const tabs = [['info', 'Maklumat'], ...Object.entries(TABLES).map(([k, t]) => [k, t.label]), ['ai', '🤖 Pembantu AI'], ['docs', '📄 Jana Dokumen']];
   let body;
   if (tab === 'info') body = `<div class="grid" data-scope="program">
       ${field(P, 'nama', 'Nama program', 'text', 'full')}
@@ -109,6 +109,7 @@ function programView() {
       ${field(P, 'sumberKewangan', 'Sumber kewangan (cth: PIBG / SUWA)', 'text', 'full')}
       ${field(P, 'kataAlu', 'Kata aluan (untuk buku program, pilihan)', 'textarea', 'full')}
       ${field(P, 'penutup', 'Penutup kertas kerja (pilihan)', 'textarea', 'full')}</div>`;
+  else if (tab === 'ai') body = aiView(P);
   else if (tab === 'docs') body = `<p class="muted">Pilih dokumen untuk pratonton, kemudian tekan <b>Cetak / Simpan PDF</b> (pilih "Save as PDF" dalam dialog cetak).</p>
       <div class="doc-grid">${Object.entries(DOCS).map(([k, d]) => `<button data-doc="${k}"><b>${d.tajuk}</b>
       <div class="muted">${d.perItem ? rows(P[d.perItem]).filter(r => String(r[d.perItem === 'ajk' ? 1 : 0] || '').trim()).length + ' surat' : 'Satu dokumen'}</div></button>`).join('')}
@@ -128,6 +129,72 @@ function tableEditor(key, P) {
       <td><button class="small danger" data-rmrow="${i}">✕</button></td></tr>`).join('')}</table></div>
     <div class="row" style="margin-top:8px"><button data-addrow>+ Tambah baris</button><button data-clear class="danger">Kosongkan</button>
     ${key === 'bajet' ? `<b>Jumlah: ${rm(rows(data).reduce((s, r) => s + (+r[1] || 0) * (+r[2] || 0), 0))}</b>` : ''}</div>`;
+}
+
+/* ===================== PEMBANTU AI ===================== */
+let aiFiles = [], aiBusy = false;
+function aiView(P) {
+  const chat = P.chat || [];
+  return `<h2>Pembantu AI</h2>
+    <p class="muted">Minta AI isi maklumat program. Contoh: "Tulis latar belakang dan 4 objektif", "Cadangkan atur cara 8 pagi hingga 12 tengah hari",
+    atau lampirkan gambar/PDF senarai nama dan tulis "Masukkan senarai ini sebagai penerima anugerah". Semak semula hasil AI sebelum mencetak.</p>
+    <div class="chat" id="chat">${chat.length ? chat.map(m => `<div class="msg ${m.role}">${nl(m.text)}${m.files ? `<div class="muted">📎 ${esc(m.files)}</div>` : ''}</div>`).join('')
+      : '<p class="muted">Belum ada perbualan.</p>'}${aiBusy ? '<div class="msg assistant muted">AI sedang menulis…</div>' : ''}</div>
+    ${aiFiles.length ? `<div class="row muted">📎 ${aiFiles.map((f, i) => `${esc(f.name)} <button class="small" data-rmfile="${i}">✕</button>`).join(' ')}</div>` : ''}
+    <div class="row" style="margin-top:8px;align-items:flex-end">
+      <textarea id="ai-msg" placeholder="Tulis permintaan…" style="flex:1;min-height:60px"></textarea>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <label class="small" style="font-weight:400"><input type="file" id="ai-file" multiple accept="image/*,.pdf,.txt,.csv" style="width:auto"></label>
+        <button class="primary" id="ai-send" ${aiBusy ? 'disabled' : ''}>Hantar</button>
+      </div></div>
+    <div class="row muted" style="margin-top:8px">Kod akses: <input id="ai-kod" type="password" value="${esc(db.kodAkses || '')}" style="width:160px">
+      <button class="small" id="ai-clear">Padam perbualan</button></div>`;
+}
+const fileToB64 = f => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.onerror = no; r.readAsDataURL(f); });
+function imgToJpeg(f, max) {
+  return new Promise(ok => { const img = new Image(); const u = URL.createObjectURL(f);
+    img.onload = () => { const s = Math.min(1, max / Math.max(img.width, img.height)); const c = document.createElement('canvas');
+      c.width = img.width * s; c.height = img.height * s; c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(u); ok(c.toDataURL('image/jpeg', 0.85).split(',')[1]); }; img.src = u; });
+}
+async function prepFile(f) {
+  if (f.type.startsWith('image/')) return { name: f.name, type: 'image/jpeg', data: await imgToJpeg(f, 1600) };
+  if (f.type === 'application/pdf') return { name: f.name, type: f.type, data: await fileToB64(f) };
+  return { name: f.name, type: 'text/plain', text: await f.text() };
+}
+function applyAI(P, out) {
+  const changes = [];
+  (out.medan || []).forEach(m => { P[m.kunci] = m.nilai; changes.push(m.kunci); });
+  (out.jadual || []).forEach(j => {
+    const n = TABLES[j.jadual].cols.length;
+    const rowsNew = (j.baris || []).map(r => Array.from({ length: n }, (_, i) => String(r[i] ?? '')));
+    P[j.jadual] = j.mod === 'tambah' ? [...(P[j.jadual] || []), ...rowsNew] : rowsNew;
+    changes.push(TABLES[j.jadual].label + ' (' + rowsNew.length + ' baris)');
+  });
+  return changes;
+}
+async function sendAI() {
+  const P = cur(); const msg = $('#ai-msg').value.trim();
+  if (!msg && !aiFiles.length) return;
+  const total = aiFiles.reduce((s, f) => s + (f.data || f.text || '').length, 0);
+  if (total > 3.5e6) { alert('Lampiran terlalu besar (maks ~2.5MB). Kurangkan fail atau halaman PDF.'); return; }
+  P.chat = P.chat || [];
+  const { chat, ...programData } = P;
+  const sejarah = P.chat.map(m => ({ role: m.role, text: m.text }));
+  P.chat.push({ role: 'user', text: msg || '(lampiran)', files: aiFiles.map(f => f.name).join(', ') || undefined });
+  const lampiran = aiFiles; aiFiles = []; aiBusy = true; save(); render();
+  try {
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kod: db.kodAkses || '', program: programData, sejarah, mesej: msg, lampiran }) });
+    const out = await r.json().catch(() => ({ error: 'Pelayan AI tidak dapat dihubungi. Pastikan app dibuka melalui link hosting (bukan fail tempatan).' }));
+    if (!r.ok || out.error) throw new Error(out.error || 'Ralat ' + r.status);
+    const changes = applyAI(P, out);
+    P.chat.push({ role: 'assistant', text: out.balasan + (changes.length ? '\n\n✅ Dikemas kini: ' + changes.join(', ') : '') });
+  } catch (e) {
+    P.chat.push({ role: 'assistant', text: '⚠️ ' + e.message });
+  }
+  aiBusy = false; save(); render();
+  const c = $('#chat'); if (c) c.scrollTop = c.scrollHeight;
 }
 
 /* ===================== EVENTS ===================== */
@@ -190,6 +257,15 @@ function bind() {
     const clr = app.querySelector('[data-clear]'); if (clr) clr.onclick = () => { if (confirm('Kosongkan semua baris?')) { P[tab] = []; save(); render(); } };
   }
 
+  if (tab === 'ai' && view === 'program') {
+    $('#ai-send').onclick = sendAI;
+    $('#ai-msg').onkeydown = e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendAI(); };
+    $('#ai-kod').oninput = e => { db.kodAkses = e.target.value; save(); };
+    $('#ai-file').onchange = async e => { for (const f of e.target.files) aiFiles.push(await prepFile(f)); render(); };
+    app.querySelectorAll('[data-rmfile]').forEach(b => b.onclick = () => { aiFiles.splice(+b.dataset.rmfile, 1); render(); });
+    $('#ai-clear').onclick = () => { cur().chat = []; save(); render(); };
+    const c = $('#chat'); c.scrollTop = c.scrollHeight;
+  }
   app.querySelectorAll('[data-doc]').forEach(b => b.onclick = () => showDoc(b.dataset.doc));
 
   const ex = $('#btn-export');

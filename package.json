@@ -1,0 +1,8 @@
+{
+  "name": "fail-program-cikgu",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.14.0"
+  }
+}
