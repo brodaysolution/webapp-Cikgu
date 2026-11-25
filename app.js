@@ -144,7 +144,7 @@ function tableEditor(key, P) {
   if (key === 'perbelanjaan') foot = `<b>Jumlah perbelanjaan: ${rm(sum(4))}</b>`;
   if (key === 'sebutharga') foot = ['A', 'B', 'C'].map((x, i) => `<b>${esc(P['pembekal' + x] || 'Pembekal ' + x)}: ${rm(rows(data).reduce((s, r) => s + (+r[1] || 0) * (+r[2 + i] || 0), 0))}</b>`).join(' · ');
   const extraBottom = key === 'perbelanjaan' ? `<h3>Gambar resit (lampiran laporan kewangan)</h3>
-      <p class="muted">Tip: lampirkan gambar resit dalam Cikgu AI Assistant (butang hijau di bawah kanan) dan minta "Masukkan resit ini ke perbelanjaan" untuk isi jadual secara automatik.</p>${gallery(P, 'resit', 12)}` : '';
+      <p class="muted">Setiap resit yang di-scan atau di-upload akan dibaca oleh AI secara automatik dan dimasukkan ke jadual di atas. Semak tarikh dan jumlah selepas itu.</p>${gallery(P, 'resit', 12)}` : '';
   return `<h2>${t.label}</h2>${extraTop}
     <p class="muted">Tip: Salin beberapa baris dari Excel/Google Sheets anda dan tampal ke dalam mana-mana sel, baris baharu akan ditambah automatik. Gunakan <a href="#" class="open-ai">"Cikgu AI Assistant"</a> untuk lebih cepat siap!</p>
     <div class="tbl-wrap"><table class="edit"><tr><th>#</th>${t.cols.map(c => `<th>${c}</th>`).join('')}<th></th></tr>
@@ -156,7 +156,10 @@ function tableEditor(key, P) {
 
 function gallery(P, key, max) {
   const imgs = P[key] || [];
-  return `<div class="gallery">${imgs.map((g, i) => `<figure><img src="${g.data}" alt=""><figcaption>
+  const aiTag = (g, i) => key !== 'resit' ? '' : g.ai === 'reading' ? '<div class="ai-tag reading">AI sedang membaca…</div>'
+    : g.ai === 'done' ? `<div class="ai-tag done">${esc(g.aiNote || 'Dimasukkan ke jadual')}</div>`
+    : `<div class="ai-tag ${g.ai === 'error' ? 'error' : ''}">${g.ai === 'error' ? esc(g.aiNote) + ' ' : ''}<button class="small" data-readai="${i}">Baca dengan AI</button></div>`;
+  return `<div class="gallery">${imgs.map((g, i) => `<figure><img src="${g.data}" alt="">${aiTag(g, i)}<figcaption>
       <input data-cap="${key},${i}" value="${esc(g.cap || '')}" placeholder="Kapsyen"><button class="small danger" data-rmgal="${key},${i}">✕</button></figcaption></figure>`).join('')}</div>
     ${imgs.length < max ? `<div class="row gal-actions">
       <label class="btn-like primary">Scan guna kamera<input type="file" accept="image/*" capture="environment" data-gal="${key}" data-max="${max}" hidden></label>
@@ -202,6 +205,25 @@ async function prepFile(f) {
   if (f.type === 'application/pdf') return { name: f.name, type: f.type, data: await fileToB64(f) };
   return { name: f.name, type: 'text/plain', text: await f.text() };
 }
+async function readReceipt(P, g, b64) {
+  g.ai = 'reading'; g.aiNote = ''; save(); if (cur() === P && tab === 'perbelanjaan') render();
+  try {
+    const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      kod: db.kodAkses || '', program: { nama: P.nama, tarikh: P.tarikh, perbelanjaan: P.perbelanjaan || [] }, sejarah: [],
+      mesej: 'Baca resit dalam gambar ini. Masukkan SATU baris sahaja ke jadual "perbelanjaan" dengan mod "tambah": [Tarikh DD/MM/YYYY, Pembekal/nama kedai, No. Resit, Perkara (ringkaskan item), Jumlah keseluruhan RM nombor sahaja]. Jangan ubah medan atau jadual lain. Jika gambar bukan resit atau tidak jelas, jangan tambah apa-apa dan terangkan dalam balasan.',
+      lampiran: [{ name: 'resit.jpg', type: 'image/jpeg', data: b64 }] }) });
+    const out = await r.json().catch(() => ({ error: 'AI tidak dapat dihubungi (buka melalui link hosting).' }));
+    if (r.status === 401) throw new Error('Isi kod akses dalam Cikgu AI Assistant dahulu.');
+    if (!r.ok || out.error) throw new Error(out.error || 'Ralat ' + r.status);
+    const t = (out.jadual || []).find(j => j.jadual === 'perbelanjaan' && (j.baris || []).length);
+    if (!t) throw new Error(out.balasan || 'Resit tidak dapat dibaca.');
+    const row = Array.from({ length: 5 }, (_, i) => String(t.baris[0][i] ?? ''));
+    P.perbelanjaan = [...rows(P.perbelanjaan || []), row];
+    g.ai = 'done'; g.aiNote = `${row[1] || 'Resit'}: RM ${row[4] || '?'}`; if (!g.cap) g.cap = [row[1], row[2]].filter(Boolean).join(' · ');
+  } catch (e) { g.ai = 'error'; g.aiNote = e.message; }
+  save(); if (cur() === P && tab === 'perbelanjaan') render();
+}
+
 function applyAI(P, out) {
   const changes = [];
   (out.medan || []).forEach(m => { P[m.kunci] = m.nilai; changes.push(m.kunci); });
@@ -313,9 +335,17 @@ function bind() {
   }
   app.querySelectorAll('[data-gal]').forEach(inp => inp.onchange = async () => {
     const P = cur(), key = inp.dataset.gal, max = +inp.dataset.max; P[key] = P[key] || [];
-    for (const f of inp.files) { if (P[key].length >= max) break; P[key].push({ data: 'data:image/jpeg;base64,' + await imgToJpeg(f, 1000), cap: '' }); }
+    const added = [];
+    for (const f of inp.files) {
+      if (P[key].length >= max) break;
+      const g = { data: 'data:image/jpeg;base64,' + await imgToJpeg(f, 1000), cap: '' };
+      P[key].push(g);
+      if (key === 'resit') added.push({ g, hi: await imgToJpeg(f, 1600) });
+    }
     save(); render();
+    for (const a of added) await readReceipt(P, a.g, a.hi);
   });
+  app.querySelectorAll('[data-readai]').forEach(b => b.onclick = () => { const P = cur(); const g = P.resit[+b.dataset.readai]; readReceipt(P, g, g.data.split(',')[1]); });
   app.querySelectorAll('[data-cap]').forEach(inp => inp.oninput = () => { const [k, i] = inp.dataset.cap.split(','); cur()[k][+i].cap = inp.value; save(); });
   app.querySelectorAll('[data-rmgal]').forEach(b => b.onclick = () => { const [k, i] = b.dataset.rmgal.split(','); cur()[k].splice(+i, 1); save(); render(); });
   app.querySelectorAll('[data-doc]').forEach(b => b.onclick = () => showDoc(b.dataset.doc));

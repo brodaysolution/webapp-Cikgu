@@ -104,6 +104,13 @@ a.open-ai { font-weight:700; color:var(--pri-dark); }
 .btn-like:focus-within { outline:3px solid var(--sun); }
 .gal-actions { margin-top:10px; }
 
+.ai-tag { font-size:.8em; padding:4px 6px; background:var(--pri-soft); color:var(--ink); font-weight:700; }
+.ai-tag.reading { background:#fff6d8; animation:pulse 1.2s ease-in-out infinite; }
+.ai-tag.done { background:var(--pri); color:#fff; }
+.ai-tag.error { background:#fde8e4; color:#a8321f; font-weight:600; }
+.ai-tag button { margin-top:2px; }
+@keyframes pulse { 50% { opacity:.55; } }
+
 /* ===== Pratonton & cetakan ===== */
 .preview-bar { position:sticky; top:0; display:flex; justify-content:space-between; align-items:center; gap:8px;
   background:var(--ink); color:#fff; padding:8px 16px; z-index:5; }
