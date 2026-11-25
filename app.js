@@ -53,6 +53,8 @@ function render() {
   if (view === 'school') app.innerHTML = schoolView();
   else if (view === 'program') app.innerHTML = programView();
   else app.innerHTML = listView();
+  $('#ai-dock').innerHTML = view === 'program' && cur() ? dockView() : '';
+  aiAnim = false;
   bind();
 }
 
@@ -98,7 +100,7 @@ function schoolView() {
 function programView() {
   const P = cur();
   if (!P) { view = 'programs'; return listView(); }
-  const tabs = [['info', 'Maklumat'], ...Object.entries(TABLES).map(([k, t]) => [k, t.label]), ['laporan', '📸 Laporan & Gambar'], ['ai', '🤖 Pembantu AI'], ['docs', '📄 Jana Dokumen']];
+  const tabs = [['info', 'Maklumat'], ...Object.entries(TABLES).map(([k, t]) => [k, t.label]), ['laporan', 'Laporan & Gambar'], ['docs', 'Jana Dokumen']];
   let body;
   if (tab === 'info') body = `<div class="grid" data-scope="program">
       ${field(P, 'nama', 'Nama program', 'text', 'full')}
@@ -121,7 +123,6 @@ function programView() {
       ${field(P, 'cadangan', 'Cadangan penambahbaikan', 'textarea', 'full')}</div>
     <h3>Gambar program (maks 6)</h3>
     ${gallery(P, 'gambar', 6)}`;
-  else if (tab === 'ai') body = aiView(P);
   else if (tab === 'docs') body = `<p class="muted">Pilih dokumen untuk pratonton, kemudian tekan <b>Cetak / Simpan PDF</b> (pilih "Save as PDF" dalam dialog cetak).</p>
       <div class="doc-grid">${Object.entries(DOCS).map(([k, d]) => `<button data-doc="${k}"><b>${d.tajuk}</b>
       <div class="muted">${d.perItem ? rows(P[d.perItem]).filter(r => String(r[d.perItem === 'ajk' ? 1 : 0] || '').trim()).length + ' surat' : 'Satu dokumen'}</div></button>`).join('')}
@@ -143,7 +144,7 @@ function tableEditor(key, P) {
   if (key === 'perbelanjaan') foot = `<b>Jumlah perbelanjaan: ${rm(sum(4))}</b>`;
   if (key === 'sebutharga') foot = ['A', 'B', 'C'].map((x, i) => `<b>${esc(P['pembekal' + x] || 'Pembekal ' + x)}: ${rm(rows(data).reduce((s, r) => s + (+r[1] || 0) * (+r[2 + i] || 0), 0))}</b>`).join(' · ');
   const extraBottom = key === 'perbelanjaan' ? `<h3>Gambar resit (lampiran laporan kewangan)</h3>
-      <p class="muted">Tip: lampirkan gambar resit dalam tab 🤖 Pembantu AI dan minta "Masukkan resit ini ke perbelanjaan" untuk isi jadual secara automatik.</p>${gallery(P, 'resit', 12)}` : '';
+      <p class="muted">Tip: lampirkan gambar resit dalam Cikgu AI Assistant (butang hijau di bawah kanan) dan minta "Masukkan resit ini ke perbelanjaan" untuk isi jadual secara automatik.</p>${gallery(P, 'resit', 12)}` : '';
   return `<h2>${t.label}</h2>${extraTop}
     <p class="muted">Tip: salin beberapa baris dari Excel / Google Sheets dan tampal ke dalam mana-mana sel — baris baharu akan ditambah automatik.</p>
     <div class="tbl-wrap"><table class="edit"><tr><th>#</th>${t.cols.map(c => `<th>${c}</th>`).join('')}<th></th></tr>
@@ -162,18 +163,23 @@ function gallery(P, key, max) {
 }
 
 /* ===================== PEMBANTU AI ===================== */
-let aiFiles = [], aiBusy = false;
+let aiFiles = [], aiBusy = false, aiOpen = false, aiDraft = '', aiAnim = true;
+function dockView() {
+  if (!aiOpen) return `<button class="ai-fab${aiAnim ? ' anim' : ''}" id="ai-fab" aria-label="Buka Cikgu AI Assistant"><span class="spark" aria-hidden="true"></span>Cikgu AI Assistant</button>`;
+  return `<section class="ai-panel${aiAnim ? ' anim' : ''}" role="dialog" aria-label="Cikgu AI Assistant">
+    <header><div><b>Cikgu AI Assistant</b><small>Isi sekali, siap semua!</small></div><button class="ai-x" id="ai-close" aria-label="Tutup">✕</button></header>
+    <div class="ai-body">${aiView(cur())}</div></section>`;
+}
 function aiView(P) {
   const chat = P.chat || [];
-  return `<h2>Pembantu AI</h2>
-    <p class="muted">Minta AI isi maklumat program. Contoh: "Tulis latar belakang dan 4 objektif", "Cadangkan atur cara 8 pagi hingga 12 tengah hari",
+  return `<p class="muted">Minta AI isi maklumat program. Contoh: "Tulis latar belakang dan 4 objektif", "Cadangkan atur cara 8 pagi hingga 12 tengah hari",
     atau lampirkan gambar/PDF senarai nama dan tulis "Masukkan senarai ini sebagai penerima anugerah". Semak semula hasil AI sebelum mencetak.</p>
     <div class="chat" id="chat">${chat.length ? chat.map(m => `<div class="msg ${m.role}">${nl(m.text)}${m.files ? `<div class="muted">📎 ${esc(m.files)}</div>` : ''}</div>`).join('')
       : '<p class="muted">Belum ada perbualan.</p>'}${aiBusy ? '<div class="msg assistant muted">AI sedang menulis…</div>' : ''}</div>
     ${aiFiles.length ? `<div class="row muted">📎 ${aiFiles.map((f, i) => `${esc(f.name)} <button class="small" data-rmfile="${i}">✕</button>`).join(' ')}</div>` : ''}
-    <div class="row" style="margin-top:8px;align-items:flex-end">
-      <textarea id="ai-msg" placeholder="Tulis permintaan…" style="flex:1;min-height:60px"></textarea>
-      <div style="display:flex;flex-direction:column;gap:6px">
+    <div class="compose">
+      <textarea id="ai-msg" placeholder="Tulis permintaan…" >${esc(aiDraft)}</textarea>
+      <div class="row" style="justify-content:space-between">
         <label class="small" style="font-weight:400"><input type="file" id="ai-file" multiple accept="image/*,.pdf,.txt,.csv" style="width:auto"></label>
         <button class="primary" id="ai-send" ${aiBusy ? 'disabled' : ''}>Hantar</button>
       </div></div>
@@ -211,6 +217,7 @@ async function sendAI() {
   P.chat = P.chat || [];
   const { chat, gambar, resit, ...programData } = P;
   const sejarah = P.chat.map(m => ({ role: m.role, text: m.text }));
+  aiDraft = '';
   P.chat.push({ role: 'user', text: msg || '(lampiran)', files: aiFiles.map(f => f.name).join(', ') || undefined });
   const lampiran = aiFiles; aiFiles = []; aiBusy = true; save(); render();
   try {
@@ -287,12 +294,15 @@ function bind() {
     const clr = app.querySelector('[data-clear]'); if (clr) clr.onclick = () => { if (confirm('Kosongkan semua baris?')) { P[tab] = []; save(); render(); } };
   }
 
-  if (tab === 'ai' && view === 'program') {
+  const fab = $('#ai-fab'); if (fab) fab.onclick = () => { aiOpen = true; aiAnim = true; render(); const m = $('#ai-msg'); if (m) m.focus(); };
+  if (aiOpen && view === 'program' && $('#ai-send')) {
+    $('#ai-close').onclick = () => { aiOpen = false; aiAnim = true; render(); };
+    $('#ai-msg').oninput = e => { aiDraft = e.target.value; };
     $('#ai-send').onclick = sendAI;
     $('#ai-msg').onkeydown = e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) sendAI(); };
     $('#ai-kod').oninput = e => { db.kodAkses = e.target.value; save(); };
     $('#ai-file').onchange = async e => { for (const f of e.target.files) aiFiles.push(await prepFile(f)); render(); };
-    app.querySelectorAll('[data-rmfile]').forEach(b => b.onclick = () => { aiFiles.splice(+b.dataset.rmfile, 1); render(); });
+    document.querySelectorAll('[data-rmfile]').forEach(b => b.onclick = () => { aiFiles.splice(+b.dataset.rmfile, 1); render(); });
     $('#ai-clear').onclick = () => { cur().chat = []; save(); render(); };
     const c = $('#chat'); c.scrollTop = c.scrollHeight;
   }
@@ -336,14 +346,15 @@ function showDoc(key) {
   $('#preview').innerHTML = keys.map(k => DOCS[k].gen(S, P)).join('');
   $('#preview-title').textContent = key === 'ALL' ? 'Semua dokumen' : DOCS[key].tajuk;
   document.title = (P.nama || 'Dokumen') + ' - ' + $('#preview-title').textContent;
-  $('#app').classList.add('hidden'); $('.topbar').classList.add('hidden'); $('.site-footer').classList.add('hidden'); $('#preview-wrap').classList.remove('hidden');
+  $('#app').classList.add('hidden'); $('.topbar').classList.add('hidden'); $('.site-footer').classList.add('hidden'); $('#ai-dock').classList.add('hidden'); $('#preview-wrap').classList.remove('hidden');
   window.scrollTo(0, 0);
 }
 $('#btn-back').onclick = () => {
-  $('#preview-wrap').classList.add('hidden'); $('#app').classList.remove('hidden'); $('.topbar').classList.remove('hidden'); $('.site-footer').classList.remove('hidden');
+  $('#preview-wrap').classList.add('hidden'); $('#app').classList.remove('hidden'); $('.topbar').classList.remove('hidden'); $('.site-footer').classList.remove('hidden'); $('#ai-dock').classList.remove('hidden');
   document.title = 'CikguDocs';
 };
 $('#btn-print').onclick = () => window.print();
 document.querySelectorAll('.topbar nav button').forEach(b => b.onclick = () => { view = b.dataset.view; render(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && aiOpen) { aiOpen = false; aiAnim = true; render(); } });
 
 render();

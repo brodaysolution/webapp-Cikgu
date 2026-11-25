@@ -15,7 +15,7 @@ Webapp untuk guru menjana dokumen program sekolah: **isi maklumat sekali, siap s
 - Laporan program / OPR satu muka surat dengan gambar
 
 ## Cara guna
-1. Buka link hosting (lihat bahagian Hosting). `index.html` juga boleh dibuka terus, tetapi Pembantu AI hanya berfungsi melalui hosting.
+1. Buka link hosting (lihat bahagian Hosting). `index.html` juga boleh dibuka terus, tetapi Cikgu AI Assistant hanya berfungsi melalui hosting.
 2. Isi **Profil Sekolah** (nama, alamat, logo, pengetua). Tandatangan adalah pilihan.
 3. **Cipta Program** dari templat "Hari Anugerah Kecemerlangan" atau templat kosong.
 4. Isi tab Maklumat, Jawatankuasa, Tetamu dan lain-lain. Senarai boleh ditampal terus dari Excel.
@@ -24,8 +24,8 @@ Webapp untuk guru menjana dokumen program sekolah: **isi maklumat sekali, siap s
 Data disimpan dalam pelayar (localStorage). Gunakan butang **Data Backup** untuk muat turun salinan.
 `contoh-output.pdf` ialah contoh hasil penjanaan.
 
-## Pembantu AI
-Tab **🤖 Pembantu AI** dalam setiap program: cikgu boleh chat dan minta AI isi maklumat
+## Cikgu AI Assistant
+Butang terapung **Cikgu AI Assistant** (bawah kanan) dalam setiap program: cikgu boleh chat dan minta AI isi maklumat
 (latar belakang, objektif, atur cara, AJK, bajet) serta lampirkan gambar/PDF/teks rujukan
 (contoh: senarai nama, kertas kerja lama). AI terus mengemas kini data program.
 
@@ -36,7 +36,7 @@ Backend: `api/chat.js` (Vercel serverless function, Claude API). API key disimpa
 2. **Add New → Project**, import repo ini, pilih branch, tekan **Deploy** (tiada build command diperlukan).
 3. Di **Settings → Environment Variables** tambah:
    - `ANTHROPIC_API_KEY`: API key dari https://console.anthropic.com
-   - `KOD_AKSES` (pilihan, disyorkan): kod rahsia yang cikgu perlu isi dalam tab Pembantu AI, supaya orang luar tidak guna kredit API anda.
+   - `KOD_AKSES` (pilihan, disyorkan): kod rahsia yang cikgu perlu isi dalam Cikgu AI Assistant, supaya orang luar tidak guna kredit API anda.
 4. **Redeploy**. Kongsi link `https://<projek>.vercel.app` dengan cikgu.
 
 ## Fasa seterusnya
